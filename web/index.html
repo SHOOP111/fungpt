@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Cortex Lab — Neural Systems Workbench</title>
+<style>
+:root{color-scheme:dark;--bg:#080b12;--panel:#101621;--panel2:#0d131d;--line:#222d3d;--muted:#7f91a8;--text:#e6edf7;--cyan:#6de6d0;--blue:#79aaff;--violet:#bd9aff;--amber:#f5be72;--red:#ff8797;--green:#9bdc98;--radius:16px}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}body{margin:0;color:var(--text);font:13px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(ellipse at 28% -22%,#17243a 0,transparent 48%),radial-gradient(ellipse at 95% 45%,#0d1d27 0,transparent 33%),var(--bg);min-height:100vh}
+button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}.app{max-width:1620px;margin:auto;padding:0 26px 34px}.topbar{height:76px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1c2633;gap:18px}.brand{display:flex;align-items:center;gap:12px;min-width:220px}.brandmark{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#18333e,#172239);border:1px solid #36545f;display:grid;place-items:center;box-shadow:0 0 26px #2bd6c31c}.brandmark svg{width:25px}.brandname{font-size:14px;font-weight:850;letter-spacing:.18em}.brandname span{color:var(--cyan)}.subbrand{font-size:10px;color:#8698ae;letter-spacing:.09em;text-transform:uppercase;margin-top:1px}.topnav{display:flex;gap:8px;align-items:center}.navitem{padding:8px 12px;color:#889bb1;font-size:12px;border:1px solid transparent;border-radius:9px;text-decoration:none}.navitem.active{color:#e9f5fa;background:#16222e;border-color:#2c3a4c}.topright{display:flex;align-items:center;gap:12px}.online{display:flex;align-items:center;gap:7px;color:#9db3c5;font-size:11px;letter-spacing:.04em}.dot{width:7px;height:7px;border-radius:50%;background:#76e8b9;box-shadow:0 0 12px #76e8b9a8}.iconbtn{height:36px;width:36px;display:grid;place-items:center;border:1px solid var(--line);background:#111925;border-radius:10px;color:#a9bbcf;font-size:16px}
+.hero{display:flex;justify-content:space-between;align-items:flex-end;padding:34px 0 25px;gap:24px}.eyebrow{font-size:10px;letter-spacing:.19em;text-transform:uppercase;color:var(--cyan);font-weight:800;display:flex;align-items:center;gap:8px}.eyebrow:before{content:"";height:1px;width:19px;background:var(--cyan)}h1{margin:8px 0 7px;font-weight:650;font-size:clamp(26px,3vw,39px);letter-spacing:-.045em;line-height:1.12}.hero p{margin:0;color:#8c9eb2;font-size:13px;max-width:660px}.heroactions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #2b394a;background:#141d29;color:#c9d6e7;padding:10px 13px;border-radius:10px;font-weight:650;font-size:11px;transition:.18s ease}.btn:hover{border-color:#59748a;transform:translateY(-1px)}.btn.primary{color:#061513;background:var(--cyan);border-color:var(--cyan)}.btn.primary:hover{background:#a2f7e8}.btn.warn{border-color:#593641;color:#ffb3bc;background:#241820}.btn.subtle{background:transparent}.btn .glyph{font-size:14px}.btn.small{padding:7px 9px;border-radius:8px;font-size:10px}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.metric{min-height:90px;border:1px solid var(--line);background:linear-gradient(135deg,#111925,#0e141e);border-radius:13px;padding:15px 17px;position:relative;overflow:hidden}.metric:after{content:"";position:absolute;right:-24px;top:-34px;width:110px;height:110px;border-radius:50%;background:var(--glow,#6de6d0);opacity:.045;filter:blur(1px)}.metrichead{display:flex;align-items:center;justify-content:space-between;color:#8496ac;font-size:10px;text-transform:uppercase;letter-spacing:.1em}.metricicon{font-size:15px;color:var(--glow,var(--cyan))}.metricvalue{font-size:26px;font-weight:680;letter-spacing:-.04em;margin-top:4px;font-variant-numeric:tabular-nums}.metricfoot{color:#64778d;font-size:10px;margin-top:1px}
+.workspace{display:grid;grid-template-columns:minmax(0,1.72fr) minmax(320px,.83fr);gap:15px;align-items:start}.panel{background:linear-gradient(145deg,#111824f7,#0c121bf7);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;min-width:0}.panelhead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 19px;border-bottom:1px solid #202b3a}.paneltitle{font-weight:750;font-size:12px;letter-spacing:.03em;display:flex;align-items:center;gap:9px}.paneltitle .mini-icon{display:grid;place-items:center;width:25px;height:25px;border-radius:7px;background:#192c32;color:var(--cyan);font-size:13px}.panelmeta{font-size:10px;color:#768aa0}.livepill{display:inline-flex;align-items:center;gap:6px;color:#8fdbbd;border:1px solid #285346;background:#12241f;padding:4px 8px;border-radius:20px;font-size:9px;letter-spacing:.08em;font-weight:800}.livepill .dot{width:5px;height:5px}.panelbody{padding:17px 19px}
+.networkpanel{position:relative}.networkwrap{position:relative;background:radial-gradient(ellipse at 55% 48%,#14233385,transparent 58%),#090f18}.networkcanvas{display:block;width:100%;height:450px;cursor:crosshair}.canvasoverlay{position:absolute;inset:12px 14px auto;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}.canvasoverlay>*{pointer-events:auto}.tinylabel{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#7890a9}.canvasreadout{border:1px solid #263648;background:#101923cf;backdrop-filter:blur(8px);padding:7px 9px;border-radius:8px;color:#9fb2c8;font-size:10px}.canvasbottom{position:absolute;bottom:12px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none}.canvasbottom>*{pointer-events:auto}.key{display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:#8295ab;font-size:9px}.keyitem{display:flex;align-items:center;gap:5px}.keydot{width:6px;height:6px;border-radius:50%}.canvasaction{font-size:10px;color:#768ba1;background:#111925c9;border:1px solid #283548;padding:6px 8px;border-radius:7px}.networkfooter{padding:13px 17px 15px;border-top:1px solid #1b2735;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.regionchip{display:inline-flex;align-items:center;gap:7px;padding:7px 9px;border-radius:8px;border:1px solid #263141;background:#111925;color:#9aabc0;font-size:10px;transition:.15s}.regionchip:hover,.regionchip.selected{border-color:#52738b;background:#182834;color:#e2edf8}.regionchip .keydot{width:6px;height:6px}
+.rightstack{display:flex;flex-direction:column;gap:15px}.controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.controltile{border:1px solid #293747;background:#121c28;border-radius:11px;padding:12px;text-align:left;color:#d6e2ef;min-height:79px;transition:.18s}.controltile:hover{background:#182633;border-color:#476377;transform:translateY(-1px)}.controltile .tile-icon{font-size:17px;display:block;margin-bottom:7px}.controltile b{display:block;font-size:11px}.controltile small{display:block;color:#8296ad;font-size:9px;margin-top:2px}.controltile.cyan .tile-icon{color:var(--cyan)}.controltile.red .tile-icon{color:var(--red)}.controltile.amber .tile-icon{color:var(--amber)}.controltile.violet .tile-icon{color:var(--violet)}
+.sliderrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:17px 0 6px;color:#9bacc0;font-size:11px}.sliderrow strong{font-size:11px;color:#e0eaf5;font-variant-numeric:tabular-nums}.range{width:100%;accent-color:var(--cyan);cursor:pointer;margin:6px 0}.rangeends{display:flex;justify-content:space-between;color:#61758b;font-size:9px}.divider{height:1px;background:#202b38;margin:16px 0}.toggleline{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#b2c2d4;font-size:11px;margin:11px 0}.toggle{appearance:none;width:32px;height:18px;border:1px solid #3a4a5d;border-radius:20px;background:#202a37;position:relative;cursor:pointer;transition:.2s}.toggle:after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#7f90a4;transition:.2s}.toggle:checked{background:#1e625b;border-color:#3bb4a3}.toggle:checked:after{left:16px;background:#8ef2de}.regionlist{display:flex;flex-direction:column;gap:9px}.regionrow{display:grid;grid-template-columns:minmax(0,1fr) 72px 33px;gap:9px;align-items:center;cursor:pointer}.regionname{font-size:10px;color:#c1cfdf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.regioninfo{font-size:9px;color:#6e8298;margin-top:1px}.regionbar{height:4px;background:#202b38;border-radius:8px;overflow:hidden}.regionfill{height:100%;border-radius:8px;transition:width .25s}.regionrate{text-align:right;color:#8ea1b7;font-size:9px;font-variant-numeric:tabular-nums}.regionrow:hover .regionname{color:white}
+.signalgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px}.signalhead{display:flex;justify-content:space-between;gap:5px;margin-bottom:7px;font-size:10px}.signalname{color:#b7c5d6}.signalval{font-variant-numeric:tabular-nums;color:#edf5fc}.signaltrack{height:5px;border-radius:5px;background:#222e3e;overflow:hidden}.signalfill{height:100%;width:25%;border-radius:5px;transition:width .3s}.signalnote{font-size:9px;color:#6e8196;margin-top:5px}
+.lowergrid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:15px;margin-top:15px}.memgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.fieldlabel{display:block;font-size:10px;color:#899cb1;margin-bottom:6px}.field{width:100%;background:#090f18;border:1px solid #2b394a;color:#dce8f6;padding:10px 11px;border-radius:9px;outline:none;font-size:11px;min-width:0}.field:focus{border-color:#55abac;box-shadow:0 0 0 3px #51c7b51a}.field::placeholder{color:#52667b}.fieldgroup{margin-bottom:12px}.memoryresult{padding:12px;border:1px solid #293748;background:#0a111a;border-radius:10px;min-height:56px;color:#9cacc0;font-size:11px;overflow-wrap:anywhere}.memoryresult strong{color:var(--cyan);font-weight:650}.memorylist{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}.memorytag{padding:5px 7px;border:1px solid #2a3747;border-radius:7px;background:#101a25;color:#9aacc1;font-size:9px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eventlist{display:flex;flex-direction:column;gap:0}.event{display:grid;grid-template-columns:8px minmax(0,1fr);gap:9px;padding:10px 0;border-bottom:1px solid #1e2936}.event:last-child{border:0}.eventbullet{width:5px;height:5px;margin-top:6px;background:#5bd4c3;border-radius:50%;box-shadow:0 0 8px #5bd4c34a}.eventtext{color:#a8b8ca;font-size:10px;overflow-wrap:anywhere}.eventtime{font-size:9px;color:#63768a;margin-top:3px}.foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:20px;color:#586d83;font-size:9px}.foot b{color:#8095ac;font-weight:600}.toast{position:fixed;right:20px;bottom:20px;z-index:5;max-width:min(420px,calc(100vw - 40px));background:#14232d;border:1px solid #39675f;border-radius:12px;padding:12px 15px;color:#d7f5ed;box-shadow:0 18px 50px #0008;opacity:0;transform:translateY(9px);transition:.22s;pointer-events:none}.toast.show{opacity:1;transform:translateY(0)}.empty{color:#6c8097;font-size:10px;padding:9px 0}.sectiontag{color:#647a91;font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:750}
+@media(max-width:1120px){.app{padding:0 18px 28px}.workspace{grid-template-columns:minmax(0,1.4fr) minmax(290px,.8fr)}.topnav{display:none}.networkcanvas{height:400px}.hero{align-items:flex-start;flex-direction:column}.heroactions{justify-content:flex-start}}
+@media(max-width:820px){.workspace{grid-template-columns:1fr}.rightstack{display:grid;grid-template-columns:1fr 1fr}.rightstack>.panel:first-child{grid-column:span 2}.lowergrid{grid-template-columns:1fr}.networkcanvas{height:410px}.hero{padding-top:28px}.topbar{height:65px}.brand{min-width:0}}
+@media(max-width:560px){.app{padding:0 12px 22px}.topright .online{display:none}.metrics{grid-template-columns:1fr 1fr;gap:8px}.metric{padding:12px;min-height:84px}.metricvalue{font-size:23px}.heroactions .btn{flex:1}.rightstack{display:flex}.networkcanvas{height:340px}.panelhead{padding:14px}.panelbody{padding:14px}.regionchip{font-size:9px;padding:6px 7px}.memgrid{grid-template-columns:1fr}.canvasbottom{align-items:flex-start;flex-direction:column;gap:7px}.canvasreadout{max-width:180px}.brandname{font-size:12px}.subbrand{font-size:9px}.hero p{font-size:12px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <div class="brand">
+    <div class="brandmark"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M16 3.5 27 10v12L16 28.5 5 22V10L16 3.5Z" stroke="#6de6d0" stroke-width="1.4"/><path d="M10 12.2 16 8.5l6 3.7v7.6l-6 3.7-6-3.7v-7.6Z" stroke="#8fb9ff" stroke-width="1.2"/><circle cx="16" cy="16" r="2.4" fill="#6de6d0"/><path d="m10 12.2 3.8 2.2m8.2-2.2-3.8 2.2m-2.2 4.2v2.7" stroke="#6de6d0" stroke-width="1.2"/></svg></div>
+    <div><div class="brandname">CORTEX <span>LAB</span></div><div class="subbrand">Neural systems workbench</div></div>
+  </div>
+  <nav class="topnav"><a class="navitem active" href="#network">Live network</a><a class="navitem" href="#signals">Neuromodulation</a><a class="navitem" href="#memory">Memory lab</a><a class="navitem" href="#events">Event stream</a></nav>
+  <div class="topright"><div class="online"><span class="dot" id="healthDot"></span><span id="connectionText">CONNECTING TO MODEL</span></div><button class="iconbtn" id="refreshBtn" title="Refresh state" aria-label="Refresh state">↻</button></div>
+</header>
+
+<section class="hero">
+  <div><div class="eyebrow">Computational neuroscience · Experiment 001</div><h1>A living model of neural activity.</h1><p>Observe spikes, perturb brain regions, modulate synthetic neurotransmitters, and teach associative memory in a running recurrent network.</p></div>
+  <div class="heroactions"><button class="btn" id="pauseBtn"><span class="glyph" id="pauseGlyph">Ⅱ</span><span id="pauseText">Pause model</span></button><button class="btn primary" id="rewardBtn"><span class="glyph">✳</span>Deliver reward</button><button class="btn warn" id="resetBtn">↺ Reset experiment</button></div>
+</section>
+
+<section class="metrics" aria-label="Simulation metrics">
+  <div class="metric" style="--glow:#6de6d0"><div class="metrichead"><span>Action potentials</span><span class="metricicon">⌁</span></div><div class="metricvalue" id="metricSpikes">—</div><div class="metricfoot">Cumulative spikes emitted</div></div>
+  <div class="metric" style="--glow:#79aaff"><div class="metrichead"><span>Responsive units</span><span class="metricicon">◉</span></div><div class="metricvalue" id="metricActive">—</div><div class="metricfoot"><span id="metricNeurons">1,024</span> neurons · active rate &gt; 1 Hz</div></div>
+  <div class="metric" style="--glow:#bd9aff"><div class="metrichead"><span>Synaptic pathways</span><span class="metricicon">⌘</span></div><div class="metricvalue" id="metricSynapses">—</div><div class="metricfoot">Sparse directed connections</div></div>
+  <div class="metric" style="--glow:#f5be72"><div class="metrichead"><span>Model time</span><span class="metricicon">◷</span></div><div class="metricvalue" id="metricTime">0.00<span style="font-size:13px;color:#8da0b7"> s</span></div><div class="metricfoot" id="metricSpeed">Clock speed 1.00×</div></div>
+</section>
+
+<section class="workspace">
+  <div class="panel networkpanel" id="network">
+    <div class="panelhead"><div class="paneltitle"><span class="mini-icon">⌘</span> Recurrent connectome</div><div style="display:flex;align-items:center;gap:10px"><span class="panelmeta" id="networkMeta">7 regions · 1,024 units</span><span class="livepill"><span class="dot"></span>LIVE</span></div></div>
+    <div class="networkwrap"><canvas class="networkcanvas" id="networkCanvas" aria-label="Interactive visualization of neural network"></canvas>
+      <div class="canvasoverlay"><div><div class="tinylabel">Population activity map</div><div style="font-size:10px;color:#8297ad;margin-top:3px">Select a node to stimulate its region</div></div><div class="canvasreadout" id="hoverReadout">Awaiting network state…</div></div>
+      <div class="canvasbottom"><div class="key"><span class="keyitem"><span class="keydot" style="background:#6de6d0"></span>Excitatory</span><span class="keyitem"><span class="keydot" style="background:#ed8ca8"></span>Inhibitory</span><span class="keyitem"><span class="keydot" style="background:#f9d782;box-shadow:0 0 7px #f9d782"></span>High activity</span></div><div class="canvasaction">CLICK NETWORK · APPLY INPUT</div></div>
+    </div>
+    <div class="networkfooter" id="regionChips"><span class="empty">Loading regions…</span></div>
+  </div>
+
+  <aside class="rightstack">
+    <section class="panel">
+      <div class="panelhead"><div class="paneltitle"><span class="mini-icon">⌁</span> Perturbation console</div><span class="panelmeta">INPUT / OUTPUT</span></div>
+      <div class="panelbody">
+        <div class="controls-grid">
+          <button class="controltile cyan" data-action="novelty"><span class="tile-icon">✧</span><b>Novelty pulse</b><small>Attention + encoding gate</small></button>
+          <button class="controltile amber" data-action="stress"><span class="tile-icon">ϟ</span><b>Stress signal</b><small>Arousal / salience response</small></button>
+          <button class="controltile violet" data-action="sleep"><span class="tile-icon">☾</span><b>Offline replay</b><small>Consolidation approximation</small></button>
+          <button class="controltile red" data-action="reward"><span class="tile-icon">✳</span><b>Reward pulse</b><small>Dopamine-like modulation</small></button>
+        </div>
+        <div class="divider"></div>
+        <div class="sliderrow"><label for="intensityRange">Stimulus intensity</label><strong id="intensityValue">18 mV</strong></div><input class="range" type="range" min="4" max="40" step="1" value="18" id="intensityRange"><div class="rangeends"><span>Subthreshold</span><span>Strong input</span></div>
+        <div class="sliderrow"><label for="speedRange">Simulation speed</label><strong id="speedValue">1.00×</strong></div><input class="range" type="range" min="0.25" max="8" step="0.25" value="1" id="speedRange"><div class="rangeends"><span>0.25×</span><span>8×</span></div>
+        <div class="divider"></div>
+        <div class="toggleline"><span>Spike-timing plasticity (STDP)</span><input class="toggle" type="checkbox" id="plasticityToggle" checked aria-label="Toggle synaptic plasticity"></div>
+        <div class="toggleline"><span>Render synaptic pathways</span><input class="toggle" type="checkbox" id="connectionsToggle" checked aria-label="Toggle synapse rendering"></div>
+        <div class="toggleline"><span>Region labels</span><input class="toggle" type="checkbox" id="labelsToggle" checked aria-label="Toggle region labels"></div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panelhead"><div class="paneltitle"><span class="mini-icon" style="color:var(--violet);background:#241d35">◌</span> Functional regions</div><span class="panelmeta">SELECT TO STIMULATE</span></div>
+      <div class="panelbody"><div class="regionlist" id="regionList"><div class="empty">Initializing populations…</div></div></div>
+    </section>
+  </aside>
+</section>
+
+<section class="lowergrid">
+  <section class="panel" id="signals">
+    <div class="panelhead"><div class="paneltitle"><span class="mini-icon" style="color:var(--amber);background:#30271d">◈</span> Neuromodulator state</div><span class="panelmeta">NORMALIZED 0–100%</span></div>
+    <div class="panelbody"><div class="signalgrid">
+      <div><div class="signalhead"><span class="signalname">Dopamine</span><span class="signalval" id="dopamineVal">20%</span></div><div class="signaltrack"><div class="signalfill" id="dopamineBar" style="background:#f5be72"></div></div><div class="signalnote">Reward / learning signal</div></div>
+      <div><div class="signalhead"><span class="signalname">Acetylcholine</span><span class="signalval" id="achVal">34%</span></div><div class="signaltrack"><div class="signalfill" id="achBar" style="background:#6de6d0"></div></div><div class="signalnote">Attention / encoding gain</div></div>
+      <div><div class="signalhead"><span class="signalname">Noradrenaline</span><span class="signalval" id="naVal">18%</span></div><div class="signaltrack"><div class="signalfill" id="naBar" style="background:#ff8797"></div></div><div class="signalnote">Arousal / gain modulation</div></div>
+      <div><div class="signalhead"><span class="signalname">Serotonin</span><span class="signalval" id="serotoninVal">56%</span></div><div class="signaltrack"><div class="signalfill" id="serotoninBar" style="background:#bd9aff"></div></div><div class="signalnote">Slow modulatory tone</div></div>
+    </div><div class="divider"></div><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sectiontag">Population firing trend</div><div style="font-size:10px;color:#8296ad;margin-top:3px">Recent responsive-unit count</div></div><span id="trendLabel" class="panelmeta">Waiting for samples</span></div><canvas id="trendCanvas" style="display:block;width:100%;height:86px;margin-top:8px" aria-label="Population activity trend"></canvas></div>
+  </section>
+
+  <section class="panel" id="memory">
+    <div class="panelhead"><div class="paneltitle"><span class="mini-icon" style="color:var(--amber);background:#30271d">⌂</span> Associative memory lab</div><span class="panelmeta" id="memoryCount">0 TRACES</span></div>
+    <div class="panelbody">
+      <div class="memgrid">
+        <div><div class="sectiontag" style="margin-bottom:11px">01 · Encode</div><div class="fieldgroup"><label class="fieldlabel" for="memoryCue">Cue / context</label><input class="field" id="memoryCue" maxlength="220" placeholder="e.g. favorite color"></div><div class="fieldgroup"><label class="fieldlabel" for="memoryTarget">Associated target</label><input class="field" id="memoryTarget" maxlength="220" placeholder="e.g. deep blue"></div><button class="btn primary" style="width:100%" id="teachBtn">＋ Encode association</button></div>
+        <div><div class="sectiontag" style="margin-bottom:11px">02 · Retrieve</div><div class="fieldgroup"><label class="fieldlabel" for="recallCue">Retrieval cue</label><input class="field" id="recallCue" maxlength="220" placeholder="Search a learned cue…"></div><button class="btn" style="width:100%;margin-bottom:12px" id="recallBtn">⌕ Query memory</button><div class="memoryresult" id="memoryResult">Memory recall output appears here.</div></div>
+      </div>
+      <div class="divider"></div><div class="sectiontag">Stored traces</div><div class="memorylist" id="memoryList"><span class="empty">No associations encoded yet.</span></div>
+    </div>
+  </section>
+</section>
+
+<section class="panel" id="events" style="margin-top:15px">
+  <div class="panelhead"><div class="paneltitle"><span class="mini-icon">≋</span> Event stream</div><span class="panelmeta" id="eventCount">SYSTEM LOG · LIVE</span></div>
+  <div class="panelbody" style="padding-top:6px;padding-bottom:6px"><div class="eventlist" id="eventList"><div class="empty">Waiting for neural events…</div></div></div>
+</section>
+
+<footer class="foot"><div><b>CORTEX LAB</b> · A research-oriented, reduced-order neural simulation</div><div>Spiking LIF units · Sparse synapses · STDP · Associative traces · Local-first</div><div id="buildVersion">MODEL v0.1.0</div></footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+const $ = function(id){return document.getElementById(id)};
+let state = null, positions = [], lastFetch = 0, toastTimer = null, trend = [], eventHash = '';
+let hovered = -1, currentRegion = -1;
+const anchors = [[.17,.43],[.39,.48],[.60,.28],[.52,.60],[.71,.62],[.80,.39],[.84,.77]];
+const regionNames = ['Visual cortex','Thalamus','Prefrontal cortex','Hippocampus','Amygdala','Motor cortex','Cerebellum'];
+const nf = new Intl.NumberFormat('en-US');
+function showToast(message, bad){
+  $('toast').textContent = message;
+  $('toast').style.borderColor = bad ? '#87515a' : '#39675f';
+  $('toast').classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){$('toast').classList.remove('show')},2600);
+}
+async function command(action, extra){
+  const payload = Object.assign({action:action}, extra || {});
+  try{
+    const response = await fetch('/api/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data = await response.json();
+    if(!response.ok || !data.ok){showToast(data.error || 'Command failed.',true);return false;}
+    if(data.message) showToast(data.message,false);
+    await refreshState();
+    return true;
+  }catch(err){showToast('Could not reach the Rust model. Is the server still running?',true);return false;}
+}
+function makePositions(nodes){
+  const counts = new Array(7).fill(0), totals = new Array(7).fill(0);
+  nodes.forEach(function(n){totals[n.region]++});
+  return nodes.map(function(n){
+    const i = counts[n.region]++, count = totals[n.region] || 1;
+    const angle = i*2.399963229728653 + n.region*.43;
+    const radius = Math.sqrt((i+.7)/count);
+    const c = anchors[n.region] || [.5,.5];
+    const spreadX = n.region===2 ? .092 : (n.region===5 ? .065 : .077);
+    const spreadY = n.region===2 ? .105 : .105;
+    return {x:c[0]+Math.cos(angle)*spreadX*radius,y:c[1]+Math.sin(angle)*spreadY*radius,id:n.id,region:n.region};
+  });
+}
+async function refreshState(){
+  try{
+    const response = await fetch('/api/state',{cache:'no-store'});
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    state = await response.json(); lastFetch = Date.now();
+    $('healthDot').style.background='#76e8b9';$('connectionText').textContent='MODEL CONNECTED';
+    $('healthDot').style.boxShadow='0 0 12px #76e8b9a8';
+    updateInterface();
+  }catch(err){
+    $('healthDot').style.background='#ff8797';$('healthDot').style.boxShadow='0 0 12px #ff879788';$('connectionText').textContent='MODEL OFFLINE';
+  }
+}
+function updateInterface(){
+  if(!state) return;
+  const m=state.meta;
+  $('metricSpikes').textContent=nf.format(m.spikes);
+  $('metricActive').textContent=m.responsive;
+  $('metricNeurons').textContent=m.neurons;
+  $('metricSynapses').textContent=nf.format(m.synapses);
+  $('metricTime').innerHTML=Number(m.time_s).toFixed(2)+'<span style="font-size:13px;color:#8da0b7"> s</span>';
+  $('metricSpeed').textContent='Clock speed '+Number(m.speed).toFixed(2)+'×';
+  $('networkMeta').textContent=state.regions.length+' regions · '+m.neurons+' units';
+  $('pauseText').textContent=m.paused?'Resume model':'Pause model';
+  $('pauseGlyph').textContent=m.paused?'▶':'Ⅱ';
+  $('pauseBtn').classList.toggle('primary',!!m.paused);
+  $('speedValue').textContent=Number(m.speed).toFixed(2)+'×';
+  $('speedRange').value=m.speed;
+  $('plasticityToggle').checked=!!m.plasticity;
+  $('memoryCount').textContent=state.memories.length+' TRACES';
+  $('buildVersion').textContent='MODEL v'+m.version;
+  const mods=state.neuromodulators;
+  setSignal('dopamine',mods.dopamine);setSignal('ach',mods.acetylcholine);setSignal('na',mods.noradrenaline);setSignal('serotonin',mods.serotonin);
+  renderRegions();
+  renderMemories();
+  renderEvents();
+  positions=makePositions(state.neurons);
+  trend.push({t:m.time_s,v:m.responsive});
+  if(trend.length>90)trend.shift();
+  $('trendLabel').textContent=trend.length>1?trend[trend.length-1].v+' units responsive':'Collecting samples';
+}
+function setSignal(prefix,value){
+  const p=Math.round(Math.max(0,Math.min(1,value))*100);
+  $(prefix+'Val').textContent=p+'%';$(prefix+'Bar').style.width=p+'%';
+}
+function renderRegions(){
+  $('regionList').innerHTML=state.regions.map(function(r){
+    const width=Math.max(2,Math.min(100,r.activity*100));
+    return '<div class="regionrow" data-region="'+r.id+'" title="Click to stimulate '+r.name+'"><div><div class="regionname">'+escapeHtml(r.name)+'</div><div class="regioninfo">'+r.count+' units · '+r.active+' responsive</div></div><div class="regionbar"><div class="regionfill" style="width:'+width+'%;background:'+r.color+'"></div></div><div class="regionrate">'+Number(r.mean_rate).toFixed(1)+' Hz</div></div>';
+  }).join('');
+  $('regionChips').innerHTML=state.regions.map(function(r){
+    return '<button class="regionchip '+(currentRegion===r.id?'selected':'')+'" data-region="'+r.id+'"><span class="keydot" style="background:'+r.color+'"></span>'+escapeHtml(r.short)+'</button>';
+  }).join('');
+}
+function renderMemories(){
+  if(!state.memories.length){$('memoryList').innerHTML='<span class="empty">No associations encoded yet.</span>';return;}
+  $('memoryList').innerHTML=state.memories.slice().reverse().map(function(m){
+    return '<button class="memorytag" data-cue="'+escapeAttr(m.cue)+'" title="'+escapeAttr(m.cue+' → '+m.target)+'">'+escapeHtml(m.cue)+' ↦ '+escapeHtml(m.target)+' · '+Math.round(m.strength*100)+'%</button>';
+  }).join('');
+}
+function renderEvents(){
+  const hash=state.events.join('|');
+  if(hash===eventHash)return;
+  eventHash=hash;
+  $('eventList').innerHTML=state.events.slice(0,8).map(function(text,i){
+    return '<div class="event"><span class="eventbullet" style="opacity:'+(1-i*.085)+'"></span><div><div class="eventtext">'+escapeHtml(text)+'</div><div class="eventtime">'+(i===0?'LATEST SIGNAL':'RECENT EVENT')+'</div></div></div>';
+  }).join('') || '<div class="empty">No events yet.</div>';
+  $('eventCount').textContent='SYSTEM LOG · '+state.events.length+' EVENTS';
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function escapeAttr(s){return escapeHtml(s).replace(/\x60/g,'&#96;')}
+const canvas=$('networkCanvas'),ctx=canvas.getContext('2d');
+function resizeCanvas(){
+  const rect=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
+  canvas.width=Math.max(1,Math.floor(rect.width*dpr));canvas.height=Math.max(1,Math.floor(rect.height*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function drawNetwork(){
+  requestAnimationFrame(drawNetwork);
+  const rect=canvas.getBoundingClientRect(),w=rect.width,h=rect.height;
+  if(!w||!h||!state)return;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  if(canvas.width!==Math.floor(w*dpr)||canvas.height!==Math.floor(h*dpr))resizeCanvas();
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#09101a';ctx.fillRect(0,0,w,h);
+  ctx.save();ctx.strokeStyle='#233345';ctx.lineWidth=.55;ctx.globalAlpha=.34;
+  for(let x=20;x<w;x+=25){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}
+  for(let y=18;y<h;y+=25){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+  ctx.restore();
+  const pts=positions;
+  if(!pts.length)return;
+  // Diffuse population halos keep the anatomical groups legible beneath the live connectome.
+  state.regions.forEach(function(r){
+    const c=anchors[r.id],x=c[0]*w,y=c[1]*h;
+    const grad=ctx.createRadialGradient(x,y,2,x,y,Math.min(w*.16,h*.23));
+    grad.addColorStop(0,hexAlpha(r.color,.11+Math.min(.16,r.activity*.5)));grad.addColorStop(1,hexAlpha(r.color,0));
+    ctx.fillStyle=grad;ctx.beginPath();ctx.ellipse(x,y,Math.min(w*.15,125),Math.min(h*.22,94),0,0,Math.PI*2);ctx.fill();
+  });
+  if($('connectionsToggle').checked){
+    ctx.lineWidth=.55;
+    state.links.forEach(function(e,i){
+      const a=pts[e.source],b=pts[e.target];if(!a||!b)return;
+      const na=state.neurons[e.source],nb=state.neurons[e.target];
+      const active=((na.rate||0)+(nb.rate||0))>10;
+      ctx.strokeStyle=e.weight<0?'rgba(237,140,168,'+(active?.31:.075)+')':'rgba(100,196,207,'+(active?.28:.065)+')';
+      ctx.beginPath();ctx.moveTo(a.x*w,a.y*h);ctx.lineTo(b.x*w,b.y*h);ctx.stroke();
+    });
+    // Moving dashes suggest propagating signals through the directed graph.
+    const phase=(performance.now()*.00018)%1;
+    for(let k=0;k<Math.min(72,state.links.length);k++){
+      const e=state.links[(k*13+Math.floor(phase*state.links.length))%state.links.length];
+      const n=state.neurons[e.source],a=pts[e.source],b=pts[e.target];
+      if(!a||!b||(n.rate||0)<5)continue;
+      const t=(phase*2+k*.173)%1;
+      ctx.fillStyle=e.weight<0?'#f39ab5':'#86f6e0';ctx.globalAlpha=.25+Math.min(.65,n.rate/35);
+      ctx.beginPath();ctx.arc((a.x+(b.x-a.x)*t)*w,(a.y+(b.y-a.y)*t)*h,1.15,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    }
+  }
+  state.regions.forEach(function(r){
+    const c=anchors[r.id];
+    if($('labelsToggle').checked){
+      ctx.font='700 9px ui-sans-serif,system-ui';ctx.textAlign='center';ctx.fillStyle=hexAlpha(r.color,.84);
+      ctx.fillText(r.short,c[0]*w,c[1]*h+Math.min(h*.145,62));
+    }
+  });
+  pts.forEach(function(p){
+    const n=state.neurons[p.id],rate=n.rate||0;
+    const x=p.x*w,y=p.y*h;
+    const color=n.inhibitory?'#ed8ca8':(state.regions[n.region]||{}).color||'#6de6d0';
+    const r=1.45+Math.min(2.6,rate*.075)+(n.fired?1.4:0);
+    if(rate>2||n.fired){
+      const glow=ctx.createRadialGradient(x,y,0,x,y,r*5.4);
+      glow.addColorStop(0,hexAlpha(n.fired?'#ffe2a0':color,n.fired?.6:.22));glow.addColorStop(1,hexAlpha(color,0));
+      ctx.fillStyle=glow;ctx.beginPath();ctx.arc(x,y,r*5.4,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle=n.fired?'#ffe3a0':color;ctx.globalAlpha=.48+Math.min(.48,rate/32);
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    if(p.id===hovered){
+      ctx.strokeStyle='#f2f7ff';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r+4,0,Math.PI*2);ctx.stroke();
+    }
+  });
+  if(hovered>=0&&state.neurons[hovered]){
+    const n=state.neurons[hovered],r=state.regions[n.region];
+    $('hoverReadout').textContent='UNIT '+String(hovered).padStart(3,'0')+' · '+r.short+' · '+Number(n.v).toFixed(1)+' mV';
+  }else{
+    $('hoverReadout').textContent=state.meta.paused?'SIMULATION PAUSED':'T+ '+Number(state.meta.time_s).toFixed(2)+' S  ·  '+state.meta.firing_now+' SPIKING';
+  }
+}
+function hexAlpha(hex,alpha){
+  const h=hex.replace('#',''),n=parseInt(h,16);
+  if(!Number.isFinite(n))return 'rgba(109,230,208,'+alpha+')';
+  return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+alpha+')';
+}
+function drawTrend(){
+  const c=$('trendCanvas'),r=c.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
+  if(!r.width||!r.height)return;
+  if(c.width!==Math.floor(r.width*dpr)||c.height!==Math.floor(r.height*dpr)){c.width=Math.floor(r.width*dpr);c.height=Math.floor(r.height*dpr)}
+  const g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);
+  g.strokeStyle='#233140';g.lineWidth=.6;
+  for(let i=1;i<4;i++){const y=i*r.height/4;g.beginPath();g.moveTo(0,y);g.lineTo(r.width,y);g.stroke()}
+  if(trend.length<2)return;
+  const max=Math.max(10,...trend.map(x=>x.v))*1.15;
+  const pts=trend.map(function(p,i){return {x:i/(trend.length-1)*r.width,y:r.height-8-(p.v/max)*(r.height-18)}});
+  const grad=g.createLinearGradient(0,0,0,r.height);grad.addColorStop(0,'rgba(109,230,208,.23)');grad.addColorStop(1,'rgba(109,230,208,0)');
+  g.beginPath();g.moveTo(pts[0].x,r.height);pts.forEach(function(p){g.lineTo(p.x,p.y)});g.lineTo(pts[pts.length-1].x,r.height);g.closePath();g.fillStyle=grad;g.fill();
+  g.beginPath();pts.forEach(function(p,i){if(!i)g.moveTo(p.x,p.y);else g.lineTo(p.x,p.y)});g.strokeStyle='#6de6d0';g.lineWidth=1.7;g.stroke();
+  const last=pts[pts.length-1];g.fillStyle='#c4fff4';g.beginPath();g.arc(last.x,last.y,3,0,Math.PI*2);g.fill();
+}
+canvas.addEventListener('mousemove',function(e){
+  if(!state||!positions.length)return;
+  const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+  let best=-1,dist=.0008;
+  positions.forEach(function(p){const d=(p.x-x)*(p.x-x)+(p.y-y)*(p.y-y);if(d<dist){dist=d;best=p.id}});
+  hovered=best;
+});
+canvas.addEventListener('mouseleave',function(){hovered=-1});
+canvas.addEventListener('click',function(e){
+  if(!state||hovered<0)return;
+  const n=state.neurons[hovered],r=state.regions[n.region];
+  currentRegion=r.id;command('stimulate',{region:r.name,intensity:Number($('intensityRange').value)});
+});
+$('regionList').addEventListener('click',function(e){const row=e.target.closest('[data-region]');if(!row)return;const id=Number(row.dataset.region),r=state.regions[id];currentRegion=id;command('stimulate',{region:r.name,intensity:Number($('intensityRange').value)});});
+$('regionChips').addEventListener('click',function(e){const chip=e.target.closest('[data-region]');if(!chip)return;const r=state.regions[Number(chip.dataset.region)];currentRegion=r.id;command('stimulate',{region:r.name,intensity:Number($('intensityRange').value)});});
+$('memoryList').addEventListener('click',function(e){const tag=e.target.closest('[data-cue]');if(!tag)return;$('recallCue').value=tag.dataset.cue;$('recallCue').focus()});
+document.querySelectorAll('[data-action]').forEach(function(btn){btn.addEventListener('click',function(){command(btn.dataset.action,{value:.65})})});
+$('pauseBtn').addEventListener('click',function(){if(!state)return;command('pause',{paused:!state.meta.paused})});
+$('rewardBtn').addEventListener('click',function(){command('reward',{value:.75})});
+$('resetBtn').addEventListener('click',function(){if(confirm('Reset the network, accumulated spikes, and stored associations?'))command('reset')});
+$('refreshBtn').addEventListener('click',refreshState);
+$('intensityRange').addEventListener('input',function(){$('intensityValue').textContent=this.value+' mV'});
+$('speedRange').addEventListener('input',function(){$('speedValue').textContent=Number(this.value).toFixed(2)+'×'});
+$('speedRange').addEventListener('change',function(){command('speed',{value:Number(this.value)})});
+$('plasticityToggle').addEventListener('change',function(){command('plasticity')});
+$('teachBtn').addEventListener('click',async function(){
+  const cue=$('memoryCue').value.trim(),target=$('memoryTarget').value.trim();
+  if(!cue||!target){showToast('Enter both a cue and an associated target.',true);return;}
+  if(await command('associate',{cue:cue,target:target})){$('memoryResult').innerHTML='Encoded <strong>'+escapeHtml(cue)+'</strong> → <strong>'+escapeHtml(target)+'</strong>'; $('memoryCue').value='';$('memoryTarget').value='';}
+});
+async function recall(){
+  const query=$('recallCue').value.trim();if(!query){showToast('Enter a retrieval cue first.',true);return;}
+  const ok=await command('recall',{query:query});
+  if(ok&&state)$('memoryResult').textContent=state.recall_result;
+}
+$('recallBtn').addEventListener('click',recall);
+$('recallCue').addEventListener('keydown',function(e){if(e.key==='Enter')recall()});
+$('memoryTarget').addEventListener('keydown',function(e){if(e.key==='Enter')$('teachBtn').click()});
+document.addEventListener('keydown',function(e){
+  if(e.target.matches('input,textarea,button'))return;
+  if(e.code==='Space'){e.preventDefault();$('pauseBtn').click()}
+  if(e.key.toLowerCase()==='r')command('reward',{value:.65});
+  if(e.key.toLowerCase()==='n')command('novelty');
+});
+window.addEventListener('resize',function(){resizeCanvas();drawTrend()});
+resizeCanvas();refreshState();drawNetwork();drawTrend();
+setInterval(function(){if(Date.now()-lastFetch>210)refreshState();drawTrend()},260);
+})();
+</script>
+</body>
+</html>
