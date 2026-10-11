@@ -61,6 +61,8 @@ pub struct Brain {
     scale: f32,
     region_counts: [usize; 7],
     neurons: Vec<Neuron>,
+    // Reuse the spike index buffer each timestep to avoid repeated heap allocation.
+    spike_buffer: Vec<usize>,
     synapses: Vec<Synapse>,
     outgoing: Vec<Vec<usize>>,
     incoming: Vec<Vec<usize>>,
@@ -100,6 +102,7 @@ impl Brain {
             scale,
             region_counts,
             neurons: Vec::with_capacity(offsets[7]),
+            spike_buffer: Vec::with_capacity(offsets[7].min(256).max(40)),
             synapses: Vec::new(),
             outgoing: vec![Vec::new(); offsets[7]],
             incoming: vec![Vec::new(); offsets[7]],
@@ -481,7 +484,7 @@ impl Brain {
         let external_decay = (-DT / 0.095).exp();
         let adaptation_decay = (-DT / 0.180).exp();
         let rate_decay = (-DT / 0.45).exp();
-        let mut fired_now = Vec::with_capacity(40);
+        self.spike_buffer.clear();
         for i in 0..self.neurons.len() {
             let noise = (self.rand_f32() * 2.0 - 1.0) * noise_gain;
             let n = &mut self.neurons[i];
@@ -508,12 +511,12 @@ impl Brain {
                 n.adaptation += 1.6;
                 n.spikes += 1;
                 n.rate_hz += 4.0;
-                fired_now.push(i);
+                self.spike_buffer.push(i);
             }
         }
-        self.total_spikes += fired_now.len() as u64;
+        self.total_spikes += self.spike_buffer.len() as u64;
 
-        for &pre in &fired_now {
+        for &pre in &self.spike_buffer {
             let pre_trace = self.neurons[pre].pre_trace;
             let inhibitory = self.neurons[pre].inhibitory;
             for edge in self.outgoing[pre].iter().copied() {
@@ -529,7 +532,7 @@ impl Brain {
             self.neurons[pre].pre_trace = (pre_trace + 1.0).min(6.0);
         }
 
-        for &post in &fired_now {
+        for &post in &self.spike_buffer {
             if self.plasticity {
                 for edge in self.incoming[post].iter().copied() {
                     let pre = self.synapses[edge].pre;
