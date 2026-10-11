@@ -30,6 +30,8 @@ cargo run --release
 
 Open **http://127.0.0.1:8787** in a browser. Keep the Rust process running while using the dashboard; the browser UI and API are served by the same process. Stop with `Ctrl+C`.
 
+The embedded HTTP server bounds request-line and header sizes and limits concurrent clients. It accepts JSON request bodies only on `POST /api/control` and does not support chunked transfer encoding. Keep the default loopback binding for local use: there is no authentication, so setting `BRAINLAB_BIND` to a LAN-facing address exposes the experiment controls to clients that can reach that address.
+
 To change the bind address, set `BRAINLAB_BIND` before starting the app. By default it binds to loopback only, so it is not exposed to the local network.
 
 ### Scale the network
@@ -108,7 +110,7 @@ cargo build --release
 cargo fmt --all
 ```
 
-The test suite covers network initialization/connectivity, response to stimulation, paused-clock behavior, associative recall, snapshot shape and JSON command parsing. GitHub Actions runs tests and an optimized build on Linux and Windows for pushes and pull requests.
+The test suite covers network initialization/connectivity, response to stimulation, paused-clock behavior, associative recall, snapshot shape, JSON command parsing, request-line validation, ambiguous region names, finite numeric inputs, bounded stimulation drive and duplicate-token handling. GitHub Actions runs tests and an optimized build on Linux and Windows for pushes and pull requests.
 
 ## Limitations worth keeping in mind
 

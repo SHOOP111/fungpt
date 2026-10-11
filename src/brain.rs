@@ -1,6 +1,6 @@
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 const DT: f32 = 0.001;
 const REGION_DEFS: [RegionDef; 7] = [
@@ -61,6 +61,8 @@ pub struct Brain {
     scale: f32,
     region_counts: [usize; 7],
     neurons: Vec<Neuron>,
+    // Reuse the spike index buffer each timestep to avoid repeated heap allocation.
+    spike_buffer: Vec<usize>,
     synapses: Vec<Synapse>,
     outgoing: Vec<Vec<usize>>,
     incoming: Vec<Vec<usize>>,
@@ -100,6 +102,7 @@ impl Brain {
             scale,
             region_counts,
             neurons: Vec::with_capacity(offsets[7]),
+            spike_buffer: Vec::with_capacity(offsets[7].min(256).max(40)),
             synapses: Vec::new(),
             outgoing: vec![Vec::new(); offsets[7]],
             incoming: vec![Vec::new(); offsets[7]],
@@ -215,13 +218,30 @@ impl Brain {
     }
 
     fn find_region(&self, name: &str) -> Option<usize> {
-        let needle = name.to_lowercase();
-        REGION_DEFS.iter().position(|r| {
-            r.name.to_lowercase() == needle
-                || r.short.to_lowercase() == needle
-                || r.name.to_lowercase().contains(&needle)
-                || r.short.to_lowercase().contains(&needle)
-        })
+        let needle = name.trim();
+        if needle.is_empty() {
+            return None;
+        }
+
+        // Prefer a full name or abbreviation. Partial names are accepted only when unique,
+        // so an ambiguous query such as "cortex" cannot silently target the visual region.
+        if let Some(index) = REGION_DEFS.iter().position(|region| {
+            region.name.eq_ignore_ascii_case(needle) || region.short.eq_ignore_ascii_case(needle)
+        }) {
+            return Some(index);
+        }
+
+        let mut matches = REGION_DEFS.iter().enumerate().filter_map(|(index, region)| {
+            (region.name.to_lowercase().contains(&needle.to_lowercase())
+                || region.short.to_lowercase().contains(&needle.to_lowercase()))
+            .then_some(index)
+        });
+        let first = matches.next()?;
+        if matches.next().is_some() {
+            None
+        } else {
+            Some(first)
+        }
     }
 
     pub fn set_paused(&mut self, paused: bool) {
@@ -242,7 +262,8 @@ impl Brain {
     }
 
     pub fn set_speed(&mut self, speed: f32) {
-        self.speed = speed.clamp(0.25, 8.0);
+        // Keep the simulation scheduler safe even when this API is reused outside HTTP/JSON.
+        self.speed = if speed.is_finite() { speed.clamp(0.25, 8.0) } else { 1.0 };
         self.push_event(format!("Simulation clock set to {:.2}×", self.speed));
     }
 
@@ -252,15 +273,20 @@ impl Brain {
     }
 
     pub fn stimulate(&mut self, region_name: &str, intensity: f32) -> Result<(), String> {
+        if !intensity.is_finite() {
+            return Err("Stimulus intensity must be a finite number.".to_owned());
+        }
         let region = self.find_region(region_name)
-            .ok_or_else(|| format!("Unknown brain region: {region_name}"))?;
+            .ok_or_else(|| format!("Unknown or ambiguous brain region: {region_name}"))?;
         let intensity = intensity.clamp(0.0, 40.0);
         let start = self.offsets[region];
         let end = self.offsets[region + 1];
         let count = ((end - start) / 3).max(6);
         for _ in 0..count {
             let idx = start + self.rand_usize(end - start);
-            self.neurons[idx].external_drive += intensity * (0.55 + self.rand_f32() * 0.85);
+            self.neurons[idx].external_drive =
+                (self.neurons[idx].external_drive + intensity * (0.55 + self.rand_f32() * 0.85))
+                    .clamp(0.0, 60.0);
         }
         self.acetylcholine = (self.acetylcholine + 0.07).min(1.0);
         self.noradrenaline = (self.noradrenaline + 0.035).min(1.0);
@@ -269,6 +295,10 @@ impl Brain {
     }
 
     pub fn reward(&mut self, magnitude: f32) {
+        if !magnitude.is_finite() {
+            self.push_event("REWARD REJECTED · magnitude must be finite");
+            return;
+        }
         let magnitude = magnitude.clamp(0.05, 1.0);
         self.dopamine = (self.dopamine + magnitude * 0.48).min(1.0);
         self.reward_pulses += 1;
@@ -281,6 +311,10 @@ impl Brain {
     }
 
     pub fn induce_stress(&mut self, magnitude: f32) {
+        if !magnitude.is_finite() {
+            self.push_event("STRESS PERTURBATION REJECTED · magnitude must be finite");
+            return;
+        }
         let amount = magnitude.clamp(0.05, 1.0);
         self.noradrenaline = (self.noradrenaline + amount * 0.52).min(1.0);
         self.serotonin = (self.serotonin - amount * 0.14).max(0.05);
@@ -373,7 +407,9 @@ impl Brain {
             let end = self.offsets[region + 1];
             for _ in 0..((end - start) / 2).max(4) {
                 let index = start + self.rand_usize(end - start);
-                self.neurons[index].external_drive += intensity * (0.65 + self.rand_f32() * 0.70);
+                self.neurons[index].external_drive =
+                    (self.neurons[index].external_drive + intensity * (0.65 + self.rand_f32() * 0.70))
+                        .clamp(0.0, 60.0);
             }
         }
     }
@@ -396,9 +432,11 @@ impl Brain {
     }
 
     fn tokens(text: &str) -> Vec<String> {
+        let mut seen = HashSet::new();
         text.to_lowercase()
             .split(|c: char| !c.is_alphanumeric())
-            .filter(|s| s.len() > 1)
+            .filter(|token| token.chars().count() > 1)
+            .filter(|token| seen.insert((*token).to_owned()))
             .map(str::to_owned)
             .collect()
     }
@@ -446,7 +484,7 @@ impl Brain {
         let external_decay = (-DT / 0.095).exp();
         let adaptation_decay = (-DT / 0.180).exp();
         let rate_decay = (-DT / 0.45).exp();
-        let mut fired_now = Vec::with_capacity(40);
+        self.spike_buffer.clear();
         for i in 0..self.neurons.len() {
             let noise = (self.rand_f32() * 2.0 - 1.0) * noise_gain;
             let n = &mut self.neurons[i];
@@ -473,12 +511,12 @@ impl Brain {
                 n.adaptation += 1.6;
                 n.spikes += 1;
                 n.rate_hz += 4.0;
-                fired_now.push(i);
+                self.spike_buffer.push(i);
             }
         }
-        self.total_spikes += fired_now.len() as u64;
+        self.total_spikes += self.spike_buffer.len() as u64;
 
-        for &pre in &fired_now {
+        for &pre in &self.spike_buffer {
             let pre_trace = self.neurons[pre].pre_trace;
             let inhibitory = self.neurons[pre].inhibitory;
             for edge in self.outgoing[pre].iter().copied() {
@@ -494,7 +532,7 @@ impl Brain {
             self.neurons[pre].pre_trace = (pre_trace + 1.0).min(6.0);
         }
 
-        for &post in &fired_now {
+        for &post in &self.spike_buffer {
             if self.plasticity {
                 for edge in self.incoming[post].iter().copied() {
                     let pre = self.synapses[edge].pre;
@@ -590,6 +628,50 @@ impl Default for Brain {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn region_matching_rejects_empty_and_ambiguous_names() {
+        let brain = Brain::new();
+        assert_eq!(brain.find_region(" visual cortex "), Some(0));
+        assert_eq!(brain.find_region("VISUAL"), Some(0));
+        assert_eq!(brain.find_region("motor cortex"), Some(5));
+        assert_eq!(brain.find_region(""), None);
+        assert_eq!(brain.find_region("   "), None);
+        assert_eq!(brain.find_region("cortex"), None);
+    }
+
+    #[test]
+    fn non_finite_inputs_do_not_poison_the_model() {
+        let mut brain = Brain::new();
+        assert!(brain.stimulate("Visual cortex", f32::NAN).is_err());
+        assert!(brain.stimulate("cortex", 20.0).is_err());
+        brain.reward(f32::NAN);
+        brain.induce_stress(f32::INFINITY);
+        brain.set_speed(f32::NAN);
+        assert_eq!(brain.clock_speed(), 1.0);
+        assert!(brain.dopamine.is_finite());
+        assert!(brain.noradrenaline.is_finite());
+        assert!(brain.neurons.iter().all(|neuron| {
+            neuron.v.is_finite() && neuron.external_drive.is_finite()
+        }));
+    }
+
+    #[test]
+    fn repeated_words_do_not_inflate_lexical_similarity() {
+        assert_eq!(
+            Brain::tokens("favorite color"),
+            Brain::tokens("favorite favorite color favorite")
+        );
+    }
+
+    #[test]
+    fn repeated_stimulation_keeps_external_drive_bounded() {
+        let mut brain = Brain::new();
+        for _ in 0..100 {
+            brain.stimulate("Amygdala", 40.0).unwrap();
+        }
+        assert!(brain.neurons.iter().all(|neuron| neuron.external_drive <= 60.0));
+    }
 
     #[test]
     fn configured_scale_changes_network_size_with_a_safe_bound() {
