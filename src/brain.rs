@@ -111,12 +111,15 @@ impl Brain {
         for (region, def) in REGION_DEFS.iter().enumerate() {
             for local in 0..def.count {
                 let inhibitory = local % 5 == 0;
+                let v = -65.0 + brain.rand_f32() * 3.0;
+                let threshold = -50.5 + brain.rand_f32() * 1.8;
+                let tau = 0.014 + brain.rand_f32() * 0.012;
                 brain.neurons.push(Neuron {
                     region,
-                    v: -65.0 + brain.rand_f32() * 3.0,
+                    v,
                     rest: -65.0,
-                    threshold: -50.5 + brain.rand_f32() * 1.8,
-                    tau: 0.014 + brain.rand_f32() * 0.012,
+                    threshold,
+                    tau,
                     synaptic_current: 0.0,
                     external_drive: 0.0,
                     tonic_drive: if region == 0 || region == 1 { 3.05 } else { 2.6 },
@@ -420,17 +423,22 @@ impl Brain {
         self.serotonin = (self.serotonin * serotonin_decay + 0.000006).clamp(0.0, 1.0);
 
         let noise_gain = 0.8 + self.noradrenaline * 2.2;
+        let trace_decay = (-DT / 0.020).exp();
+        let current_decay = (-DT / 0.006).exp();
+        let external_decay = (-DT / 0.095).exp();
+        let adaptation_decay = (-DT / 0.180).exp();
+        let rate_decay = (-DT / 0.45).exp();
         let mut fired_now = Vec::with_capacity(40);
         for i in 0..self.neurons.len() {
             let noise = (self.rand_f32() * 2.0 - 1.0) * noise_gain;
             let n = &mut self.neurons[i];
             n.fired = false;
-            n.pre_trace *= (-DT / 0.020).exp();
-            n.post_trace *= (-DT / 0.020).exp();
-            n.synaptic_current *= (-DT / 0.006).exp();
-            n.external_drive *= (-DT / 0.095).exp();
-            n.adaptation *= (-DT / 0.180).exp();
-            n.rate_hz *= (-DT / 0.45).exp();
+            n.pre_trace *= trace_decay;
+            n.post_trace *= trace_decay;
+            n.synaptic_current *= current_decay;
+            n.external_drive *= external_decay;
+            n.adaptation *= adaptation_decay;
+            n.rate_hz *= rate_decay;
             if n.refractory > 0.0 {
                 n.refractory -= DT;
                 n.v = n.rest - 1.0;
