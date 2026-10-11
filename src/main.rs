@@ -50,7 +50,7 @@ fn main() -> std::io::Result<()> {
     }
 
     println!(
-        "\n╭────────────────────────────────────────────────────╮\n│  CORTEX LAB · brain-inspired systems workbench     │\n╰────────────────────────────────────────────────────╯\n  Dashboard : http://{bind}\n  Model     : 292 spiking units · sparse recurrent synapses\n  Safety    : localhost-only by default; no telemetry\n  Stop      : Ctrl+C\n"
+        "\n╭────────────────────────────────────────────────────╮\n│  CORTEX LAB · brain-inspired systems workbench     │\n╰────────────────────────────────────────────────────╯\n  Dashboard : http://{bind}\n  Model     : 1,024 spiking units · ~19k recurrent synapses\n  Safety    : localhost-only by default; no telemetry\n  Stop      : Ctrl+C\n"
     );
     for incoming in listener.incoming() {
         match incoming {
