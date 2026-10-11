@@ -4,13 +4,13 @@ use std::collections::VecDeque;
 
 const DT: f32 = 0.001;
 const REGION_DEFS: [RegionDef; 7] = [
-    RegionDef { name: "Visual cortex", short: "VISUAL", color: "#78a9ff", count: 48 },
-    RegionDef { name: "Thalamus", short: "THALAMUS", color: "#70e1d1", count: 32 },
-    RegionDef { name: "Prefrontal cortex", short: "PREFRONTAL", color: "#c4a7ff", count: 64 },
-    RegionDef { name: "Hippocampus", short: "HIPPOCAMPUS", color: "#f5bd6d", count: 40 },
-    RegionDef { name: "Amygdala", short: "AMYGDALA", color: "#ff8fa3", count: 28 },
-    RegionDef { name: "Motor cortex", short: "MOTOR", color: "#8ed081", count: 48 },
-    RegionDef { name: "Cerebellum", short: "CEREBELLUM", color: "#75c9f8", count: 32 },
+    RegionDef { name: "Visual cortex", short: "VISUAL", color: "#78a9ff", count: 160 },
+    RegionDef { name: "Thalamus", short: "THALAMUS", color: "#70e1d1", count: 96 },
+    RegionDef { name: "Prefrontal cortex", short: "PREFRONTAL", color: "#c4a7ff", count: 256 },
+    RegionDef { name: "Hippocampus", short: "HIPPOCAMPUS", color: "#f5bd6d", count: 128 },
+    RegionDef { name: "Amygdala", short: "AMYGDALA", color: "#ff8fa3", count: 96 },
+    RegionDef { name: "Motor cortex", short: "MOTOR", color: "#8ed081", count: 192 },
+    RegionDef { name: "Cerebellum", short: "CEREBELLUM", color: "#75c9f8", count: 96 },
 ];
 
 #[derive(Clone, Copy)]
@@ -137,7 +137,7 @@ impl Brain {
 
         for pre in 0..brain.neurons.len() {
             let pre_region = brain.neurons[pre].region;
-            let degree = 11 + brain.rand_usize(10);
+            let degree = 14 + brain.rand_usize(11);
             for _ in 0..degree {
                 let target_region = brain.choose_target_region(pre_region);
                 let local = brain.rand_usize(REGION_DEFS[target_region].count);
@@ -158,7 +158,7 @@ impl Brain {
             }
         }
 
-        brain.push_event("CORTEX LAB ONLINE · 292 model neurons initialized");
+        brain.push_event(format!("CORTEX LAB ONLINE · {} model neurons initialized", brain.neurons.len()));
         brain.push_event("Sparse recurrent connectome assembled · excitatory / inhibitory balance enabled");
         brain.push_event("Spike-timing-dependent plasticity armed");
         brain
@@ -577,7 +577,7 @@ mod tests {
     #[test]
     fn initializes_a_connected_multiregion_network() {
         let brain = Brain::new();
-        assert_eq!(brain.neurons.len(), 292);
+        assert_eq!(brain.neurons.len(), 1024);
         assert!(brain.synapses.len() > 2_500);
         assert_eq!(brain.outgoing.len(), brain.neurons.len());
         assert_eq!(brain.incoming.len(), brain.neurons.len());
@@ -615,7 +615,7 @@ mod tests {
     fn snapshot_exposes_visualization_data() {
         let brain = Brain::new();
         let state = brain.snapshot();
-        assert_eq!(state["neurons"].as_array().unwrap().len(), 292);
+        assert_eq!(state["neurons"].as_array().unwrap().len(), 1024);
         assert!(state["links"].as_array().unwrap().len() > 100);
         assert_eq!(state["regions"].as_array().unwrap().len(), 7);
     }
