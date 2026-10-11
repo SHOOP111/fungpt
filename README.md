@@ -6,8 +6,8 @@ Cortex Lab is a locally hosted, interactive research workbench built in Rust. It
 
 ## What is implemented
 
-- **292 stateful neuron units** distributed among seven named functional populations: visual cortex, thalamus, prefrontal cortex, hippocampus, amygdala, motor cortex and cerebellum.
-- **Thousands of directed recurrent synapses**, with excitatory and inhibitory weights, local recurrence and cross-region pathways.
+- **1,024 stateful neuron units** distributed among seven named functional populations: visual cortex, thalamus, prefrontal cortex, hippocampus, amygdala, motor cortex and cerebellum.
+- **Approximately 19,000 directed recurrent synapses**, with excitatory and inhibitory weights, local recurrence and cross-region pathways.
 - **Leaky integrate-and-fire dynamics** with membrane voltage, threshold, refractory periods, synaptic-current decay, adaptation, noisy background drive and per-neuron activity estimates.
 - **Spike-timing-dependent plasticity (STDP)** with pre/post traces, bounded weights and a live switch to freeze learning.
 - **Four synthetic neuromodulator state variables** (dopamine-like reward, acetylcholine-like attention/encoding, noradrenaline-like arousal and a slow serotonin-like tone). These are explanatory abstractions, not biochemically calibrated concentration models.
@@ -95,7 +95,7 @@ The test suite covers network initialization/connectivity, response to stimulati
 
 ## Limitations worth keeping in mind
 
-- The 292 units are a deliberately small model; the human brain has orders of magnitude more neurons and vastly more complex cell types and connectivity.
+- The 1,024 units are still a deliberately reduced-order model; the human brain has orders of magnitude more neurons and vastly more complex cell types and connectivity.
 - LIF dynamics, topology, time constants, synaptic delays and weights are simplified. There are no realistic morphologies, detailed ion channels, glia, endocrine loops or whole-brain anatomical constraints.
 - The four modulator variables are qualitative control signals, not physical measurements. Reward-induced weight updates and replay are exploratory rules.
 - The memory lookup uses token overlap plus a deterministic hash embedding. It is useful for inspecting association and retrieval mechanics, not evidence of semantic understanding.
