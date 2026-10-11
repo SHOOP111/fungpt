@@ -239,7 +239,7 @@ fn is_valid_target(target: &str) -> bool {
     }
     // Origin-form only: no spaces, controls, or DEL. Query strings are
     // stripped later; fragments must never be sent to a server.
-    target.bytes().all(|b| b >= 0x21 && b <= 0x7E) && !target.contains('#')
+    target.bytes().all(|b| (0x21..=0x7E).contains(&b)) && !target.contains('#')
 }
 
 fn is_valid_header_value(value: &str) -> bool {
@@ -251,7 +251,7 @@ fn is_valid_header_value(value: &str) -> bool {
 }
 
 fn parse_request_line(line: &str) -> Option<(&str, &str, &str)> {
-    let line = line.trim_end_matches(|character| character == '\r' || character == '\n');
+    let line = line.trim_end_matches(['\r', '\n']);
     let mut parts = line.split_whitespace();
     let method = parts.next()?;
     let target = parts.next()?;
@@ -356,7 +356,7 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<RwLock<Brain>>) -> std::i
             );
         }
 
-        let line = header.trim_end_matches(|character| character == '\r' || character == '\n');
+        let line = header.trim_end_matches(['\r', '\n']);
         if line.is_empty() {
             break;
         }

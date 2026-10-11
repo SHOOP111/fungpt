@@ -859,7 +859,7 @@ impl Brain {
         }
 
         let stride = (self.synapses.len() / LINK_SAMPLE_TARGET).max(1);
-        let link_estimate = (self.synapses.len() + stride - 1) / stride;
+        let link_estimate = self.synapses.len().div_ceil(stride);
         let mut links: Vec<Value> = Vec::with_capacity(link_estimate);
         for s in self.synapses.iter().step_by(stride) {
             links.push(json!({
