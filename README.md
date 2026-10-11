@@ -32,6 +32,23 @@ Open **http://127.0.0.1:8787** in a browser. Keep the Rust process running while
 
 To change the bind address, set `BRAINLAB_BIND` before starting the app. By default it binds to loopback only, so it is not exposed to the local network.
 
+### Scale the network
+
+The default scale is 1.0 (1,024 units and about 19,000 synapses). `BRAINLAB_SCALE` scales every population from 0.25× to 8× baseline; invalid values fall back to 1× and out-of-range values are clamped. Larger networks use more CPU and memory, and may not sustain real-time speed on every machine.
+
+Linux / macOS:
+```bash
+BRAINLAB_SCALE=2 cargo run --release
+```
+
+Windows PowerShell:
+```powershell
+$env:BRAINLAB_SCALE="2"
+cargo run --release
+```
+
+That 2× configuration contains 2,048 units. The dashboard and reset action keep using the configured scale.
+
 ### Quick experiments
 
 1. Click a region chip or a neuron cluster to inject input and observe downstream activity.
