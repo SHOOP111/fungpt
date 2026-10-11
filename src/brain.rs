@@ -221,7 +221,11 @@ impl Brain {
         self.set_paused(!self.paused);
     }
 
-    pub fn clock_speed(&self) -> f32 {\n        self.speed\n    }\n\n    pub fn set_speed(&mut self, speed: f32) {
+    pub fn clock_speed(&self) -> f32 {
+        self.speed
+    }
+
+    pub fn set_speed(&mut self, speed: f32) {
         self.speed = speed.clamp(0.25, 8.0);
         self.push_event(format!("Simulation clock set to {:.2}×", self.speed));
     }
@@ -284,7 +288,6 @@ impl Brain {
         if cue.len() > 220 || target.len() > 220 {
             return Err("Keep each memory field under 220 characters.".to_owned());
         }
-        let pattern = Self::embed(cue);
         let existing = self.memories.iter().position(|m| m.cue.eq_ignore_ascii_case(cue));
         let trace = MemoryTrace {
             cue: cue.to_owned(),
@@ -306,7 +309,6 @@ impl Brain {
         self.drive_region("Hippocampus", 20.0);
         self.drive_region("Prefrontal cortex", 12.0);
         self.push_event(format!("ENCODING · associative trace stored for “{}”", Self::shorten(cue, 58)));
-        let _ = pattern;
         Ok(())
     }
 
