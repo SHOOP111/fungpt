@@ -30,13 +30,48 @@ const WEIGHT_MAX: f32 = 0.85;
 const LINK_SAMPLE_TARGET: usize = 1050;
 
 const REGION_DEFS: [RegionDef; 7] = [
-    RegionDef { name: "Visual cortex", short: "VISUAL", color: "#78a9ff", count: 160 },
-    RegionDef { name: "Thalamus", short: "THALAMUS", color: "#70e1d1", count: 96 },
-    RegionDef { name: "Prefrontal cortex", short: "PREFRONTAL", color: "#c4a7ff", count: 256 },
-    RegionDef { name: "Hippocampus", short: "HIPPOCAMPUS", color: "#f5bd6d", count: 128 },
-    RegionDef { name: "Amygdala", short: "AMYGDALA", color: "#ff8fa3", count: 96 },
-    RegionDef { name: "Motor cortex", short: "MOTOR", color: "#8ed081", count: 192 },
-    RegionDef { name: "Cerebellum", short: "CEREBELLUM", color: "#75c9f8", count: 96 },
+    RegionDef {
+        name: "Visual cortex",
+        short: "VISUAL",
+        color: "#78a9ff",
+        count: 160,
+    },
+    RegionDef {
+        name: "Thalamus",
+        short: "THALAMUS",
+        color: "#70e1d1",
+        count: 96,
+    },
+    RegionDef {
+        name: "Prefrontal cortex",
+        short: "PREFRONTAL",
+        color: "#c4a7ff",
+        count: 256,
+    },
+    RegionDef {
+        name: "Hippocampus",
+        short: "HIPPOCAMPUS",
+        color: "#f5bd6d",
+        count: 128,
+    },
+    RegionDef {
+        name: "Amygdala",
+        short: "AMYGDALA",
+        color: "#ff8fa3",
+        count: 96,
+    },
+    RegionDef {
+        name: "Motor cortex",
+        short: "MOTOR",
+        color: "#8ed081",
+        count: 192,
+    },
+    RegionDef {
+        name: "Cerebellum",
+        short: "CEREBELLUM",
+        color: "#75c9f8",
+        count: 96,
+    },
 ];
 
 #[derive(Clone, Copy)]
@@ -175,7 +210,11 @@ impl Brain {
                     tau,
                     synaptic_current: 0.0,
                     external_drive: 0.0,
-                    tonic_drive: if region == 0 || region == 1 { 3.05 } else { 2.6 },
+                    tonic_drive: if region == 0 || region == 1 {
+                        3.05
+                    } else {
+                        2.6
+                    },
                     refractory: 0.0,
                     adaptation: 0.0,
                     pre_trace: 0.0,
@@ -219,8 +258,12 @@ impl Brain {
         }
 
         let neuron_count = brain.neurons.len();
-        brain.push_event(format!("CORTEX LAB ONLINE · {neuron_count} model neurons initialized"));
-        brain.push_event("Sparse recurrent connectome assembled · excitatory / inhibitory balance enabled");
+        brain.push_event(format!(
+            "CORTEX LAB ONLINE · {neuron_count} model neurons initialized"
+        ));
+        brain.push_event(
+            "Sparse recurrent connectome assembled · excitatory / inhibitory balance enabled",
+        );
         brain.push_event("Spike-timing-dependent plasticity armed");
         brain
     }
@@ -276,17 +319,18 @@ impl Brain {
 
         // Prefer a full name or abbreviation. Partial names are accepted only when unique,
         // so an ambiguous query such as "cortex" cannot silently target the visual region.
-        if let Some(index) = REGION_DEFS
-            .iter()
-            .position(|region| region.name.eq_ignore_ascii_case(needle) || region.short.eq_ignore_ascii_case(needle))
-        {
+        if let Some(index) = REGION_DEFS.iter().position(|region| {
+            region.name.eq_ignore_ascii_case(needle) || region.short.eq_ignore_ascii_case(needle)
+        }) {
             return Some(index);
         }
 
         let lowered = needle.to_lowercase();
         let mut matched: Option<usize> = None;
         for (index, region) in REGION_DEFS.iter().enumerate() {
-            if region.name.to_lowercase().contains(&lowered) || region.short.to_lowercase().contains(&lowered) {
+            if region.name.to_lowercase().contains(&lowered)
+                || region.short.to_lowercase().contains(&lowered)
+            {
                 if matched.is_some() {
                     return None; // ambiguous
                 }
@@ -386,18 +430,24 @@ impl Brain {
         let start = self.offsets[region];
         let end = self.offsets[region + 1];
         if end <= start {
-            return Err(format!("Region {} has no neurons.", REGION_DEFS[region].name));
+            return Err(format!(
+                "Region {} has no neurons.",
+                REGION_DEFS[region].name
+            ));
         }
         let count = ((end - start) / 3).max(6);
         for _ in 0..count {
             let idx = start + self.rand_usize(end - start);
-            self.neurons[idx].external_drive =
-                (self.neurons[idx].external_drive + intensity * (0.55 + self.rand_f32() * 0.85)).clamp(0.0, DRIVE_MAX);
+            self.neurons[idx].external_drive = (self.neurons[idx].external_drive
+                + intensity * (0.55 + self.rand_f32() * 0.85))
+                .clamp(0.0, DRIVE_MAX);
         }
         self.acetylcholine = (self.acetylcholine + 0.07).min(1.0);
         self.noradrenaline = (self.noradrenaline + 0.035).min(1.0);
         let label = REGION_DEFS[region].name;
-        self.push_event(format!("INPUT · {label} stimulated at {intensity:.1} mV drive"));
+        self.push_event(format!(
+            "INPUT · {label} stimulated at {intensity:.1} mV drive"
+        ));
         Ok(())
     }
 
@@ -416,7 +466,10 @@ impl Brain {
                 synapse.weight = (synapse.weight * factor).min(WEIGHT_MAX);
             }
         }
-        self.push_event(format!("REWARD PREDICTION ERROR · dopamine pulse +{:.2}", magnitude * 0.48));
+        self.push_event(format!(
+            "REWARD PREDICTION ERROR · dopamine pulse +{:.2}",
+            magnitude * 0.48
+        ));
     }
 
     /// Arousal/salience perturbation aimed at the amygdala population.
@@ -447,10 +500,17 @@ impl Brain {
         if cue.is_empty() || target.is_empty() {
             return Err("Both cue and target are required.".to_owned());
         }
-        if cue.chars().count() > MEMORY_FIELD_MAX_CHARS || target.chars().count() > MEMORY_FIELD_MAX_CHARS {
-            return Err(format!("Keep each memory field under {MEMORY_FIELD_MAX_CHARS} characters."));
+        if cue.chars().count() > MEMORY_FIELD_MAX_CHARS
+            || target.chars().count() > MEMORY_FIELD_MAX_CHARS
+        {
+            return Err(format!(
+                "Keep each memory field under {MEMORY_FIELD_MAX_CHARS} characters."
+            ));
         }
-        let existing = self.memories.iter().position(|m| m.cue.eq_ignore_ascii_case(cue));
+        let existing = self
+            .memories
+            .iter()
+            .position(|m| m.cue.eq_ignore_ascii_case(cue));
         let trace = MemoryTrace {
             cue: cue.to_owned(),
             target: target.to_owned(),
@@ -470,7 +530,10 @@ impl Brain {
         self.dopamine = (self.dopamine + 0.18).min(1.0);
         self.drive_region("Hippocampus", 20.0);
         self.drive_region("Prefrontal cortex", 12.0);
-        self.push_event(format!("ENCODING · associative trace stored for “{}”", Self::shorten(cue, 58)));
+        self.push_event(format!(
+            "ENCODING · associative trace stored for “{}”",
+            Self::shorten(cue, 58)
+        ));
         Ok(())
     }
 
@@ -480,9 +543,16 @@ impl Brain {
         if cue.is_empty() {
             return false;
         }
-        if let Some(index) = self.memories.iter().position(|m| m.cue.eq_ignore_ascii_case(cue)) {
+        if let Some(index) = self
+            .memories
+            .iter()
+            .position(|m| m.cue.eq_ignore_ascii_case(cue))
+        {
             let removed = self.memories.remove(index);
-            self.push_event(format!("FORGETTING · trace “{}” removed", Self::shorten(&removed.cue, 58)));
+            self.push_event(format!(
+                "FORGETTING · trace “{}” removed",
+                Self::shorten(&removed.cue, 58)
+            ));
             true
         } else {
             false
@@ -512,10 +582,17 @@ impl Brain {
             .enumerate()
             .map(|(i, m)| {
                 let emb = Self::embed(&m.cue);
-                let cosine = query_embed.iter().zip(emb.iter()).map(|(a, b)| a * b).sum::<f32>();
+                let cosine = query_embed
+                    .iter()
+                    .zip(emb.iter())
+                    .map(|(a, b)| a * b)
+                    .sum::<f32>();
                 let tokens = Self::tokens(&m.cue);
-                let intersection = query_tokens.iter().filter(|t| tokens.contains(t)).count() as f32;
-                let union = (query_tokens.len() + tokens.len()).saturating_sub(intersection as usize).max(1) as f32;
+                let intersection =
+                    query_tokens.iter().filter(|t| tokens.contains(t)).count() as f32;
+                let union = (query_tokens.len() + tokens.len())
+                    .saturating_sub(intersection as usize)
+                    .max(1) as f32;
                 let lexical = intersection / union;
                 let score = (cosine * 0.58 + lexical * 0.72) * m.strength;
                 (i, score)
@@ -542,7 +619,10 @@ impl Brain {
         self.drive_region("Hippocampus", 15.0);
         self.drive_region("Prefrontal cortex", 9.0);
         self.acetylcholine = (self.acetylcholine + 0.10).min(1.0);
-        self.push_event(format!("RETRIEVAL · cue “{}” queried", Self::shorten(query, 48)));
+        self.push_event(format!(
+            "RETRIEVAL · cue “{}” queried",
+            Self::shorten(query, 48)
+        ));
         result
     }
 
@@ -555,8 +635,9 @@ impl Brain {
             }
             for _ in 0..((end - start) / 2).max(4) {
                 let index = start + self.rand_usize(end - start);
-                self.neurons[index].external_drive =
-                    (self.neurons[index].external_drive + intensity * (0.65 + self.rand_f32() * 0.70)).clamp(0.0, DRIVE_MAX);
+                self.neurons[index].external_drive = (self.neurons[index].external_drive
+                    + intensity * (0.65 + self.rand_f32() * 0.70))
+                    .clamp(0.0, DRIVE_MAX);
             }
         }
     }
@@ -655,7 +736,8 @@ impl Brain {
                 continue;
             }
             let effective_threshold = n.threshold - self.acetylcholine * 0.65;
-            let dv = (n.rest - n.v + n.synaptic_current + n.external_drive + n.tonic_drive + noise - n.adaptation)
+            let dv = (n.rest - n.v + n.synaptic_current + n.external_drive + n.tonic_drive + noise
+                - n.adaptation)
                 * DT
                 / n.tau;
             n.v += dv;
@@ -689,7 +771,8 @@ impl Brain {
                 if self.plasticity && !inhibitory {
                     let depression = 0.0010 * self.neurons[post].post_trace;
                     let w = self.synapses[edge].weight;
-                    self.synapses[edge].weight = (w.abs() - depression).clamp(WEIGHT_MIN, WEIGHT_MAX) * w.signum();
+                    self.synapses[edge].weight =
+                        (w.abs() - depression).clamp(WEIGHT_MIN, WEIGHT_MAX) * w.signum();
                 }
                 let weight = self.synapses[edge].weight;
                 self.neurons[post].synaptic_current += weight * SYNAPTIC_GAIN;
@@ -706,7 +789,8 @@ impl Brain {
                     }
                     let w = self.synapses[edge].weight;
                     let potentiation = 0.00135 * self.neurons[pre].pre_trace;
-                    self.synapses[edge].weight = (w.abs() + potentiation).clamp(WEIGHT_MIN, WEIGHT_MAX) * w.signum();
+                    self.synapses[edge].weight =
+                        (w.abs() + potentiation).clamp(WEIGHT_MIN, WEIGHT_MAX) * w.signum();
                 }
             }
             self.neurons[post].post_trace = (self.neurons[post].post_trace + 1.0).min(6.0);
@@ -757,7 +841,11 @@ impl Brain {
                 slice.iter().map(|n| n.rate_hz).sum::<f32>() / slice.len() as f32
             };
             let active = slice.iter().filter(|n| n.rate_hz > 1.0).count();
-            let activity = if slice.is_empty() { 0.0 } else { active as f32 / slice.len() as f32 };
+            let activity = if slice.is_empty() {
+                0.0
+            } else {
+                active as f32 / slice.len() as f32
+            };
             regions.push(json!({
                 "id": region,
                 "name": def.name,
@@ -846,9 +934,10 @@ mod tests {
         assert_eq!(brain.clock_speed(), 1.0);
         assert!(brain.dopamine.is_finite());
         assert!(brain.noradrenaline.is_finite());
-        assert!(brain.neurons.iter().all(|neuron| {
-            neuron.v.is_finite() && neuron.external_drive.is_finite()
-        }));
+        assert!(brain
+            .neurons
+            .iter()
+            .all(|neuron| { neuron.v.is_finite() && neuron.external_drive.is_finite() }));
     }
 
     #[test]
@@ -865,7 +954,10 @@ mod tests {
         for _ in 0..100 {
             brain.stimulate("Amygdala", 40.0).unwrap();
         }
-        assert!(brain.neurons.iter().all(|neuron| neuron.external_drive <= 60.0));
+        assert!(brain
+            .neurons
+            .iter()
+            .all(|neuron| neuron.external_drive <= 60.0));
     }
 
     #[test]
@@ -887,17 +979,23 @@ mod tests {
         assert_eq!(brain.incoming.len(), brain.neurons.len());
         assert!(brain.neurons.iter().any(|n| n.inhibitory));
         assert!(brain.neurons.iter().any(|n| !n.inhibitory));
-        assert!(brain.synapses.iter().any(|s| {
-            brain.neurons[s.pre].region != brain.neurons[s.post].region
-        }));
+        assert!(brain
+            .synapses
+            .iter()
+            .any(|s| { brain.neurons[s.pre].region != brain.neurons[s.post].region }));
     }
 
     #[test]
     fn targeted_stimulation_produces_activity() {
         let mut brain = Brain::new();
         brain.stimulate("Visual cortex", 35.0).unwrap();
-        for _ in 0..1200 { brain.step(); }
-        assert!(brain.total_spikes > 0, "the stimulated model should emit action potentials");
+        for _ in 0..1200 {
+            brain.step();
+        }
+        assert!(
+            brain.total_spikes > 0,
+            "the stimulated model should emit action potentials"
+        );
     }
 
     #[test]
@@ -905,7 +1003,9 @@ mod tests {
         let mut brain = Brain::new();
         brain.set_paused(true);
         let before = brain.tick;
-        for _ in 0..20 { brain.step(); }
+        for _ in 0..20 {
+            brain.step();
+        }
         assert_eq!(before, brain.tick);
     }
 

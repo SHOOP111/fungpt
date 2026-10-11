@@ -81,7 +81,8 @@ fn main() -> std::io::Result<()> {
                     speed = model.clock_speed();
                     model.step();
                 }
-                let target = Duration::from_secs_f32((0.001 / speed.clamp(0.25, 8.0)).max(0.000125));
+                let target =
+                    Duration::from_secs_f32((0.001 / speed.clamp(0.25, 8.0)).max(0.000125));
                 if let Some(remaining) = target.checked_sub(started.elapsed()) {
                     thread::sleep(remaining);
                 }
@@ -114,14 +115,15 @@ fn main() -> std::io::Result<()> {
 
                 let shared = Arc::clone(&brain);
                 let connection_counter = Arc::clone(&active_connections);
-                if let Err(error) = thread::Builder::new()
-                    .name("cortex-http".to_owned())
-                    .spawn(move || {
-                        let _guard = ConnectionGuard(connection_counter);
-                        if let Err(error) = handle_connection(stream, shared) {
-                            eprintln!("HTTP request failed: {error}");
-                        }
-                    })
+                if let Err(error) =
+                    thread::Builder::new()
+                        .name("cortex-http".to_owned())
+                        .spawn(move || {
+                            let _guard = ConnectionGuard(connection_counter);
+                            if let Err(error) = handle_connection(stream, shared) {
+                                eprintln!("HTTP request failed: {error}");
+                            }
+                        })
                 {
                     active_connections.fetch_sub(1, Ordering::Release);
                     eprintln!("Could not start HTTP worker: {error}");
@@ -135,7 +137,10 @@ fn main() -> std::io::Result<()> {
 
 fn is_loopback_bind(bind: &str) -> bool {
     let host = bind.rsplit_once(':').map(|(h, _)| h).unwrap_or(bind);
-    let host = host.trim().trim_matches(['[', ']').to_ascii_lowercase();
+    let host = host
+        .trim()
+        .trim_matches(|c| c == '[' || c == ']')
+        .to_ascii_lowercase();
     host == "127.0.0.1" || host == "localhost" || host == "::1"
 }
 
@@ -187,9 +192,9 @@ fn read_http_line(
         bytes.extend_from_slice(&available[..chunk_len]);
         reader.consume(chunk_len);
         if complete {
-            return String::from_utf8(bytes)
-                .map(Some)
-                .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "HTTP line is not UTF-8"));
+            return String::from_utf8(bytes).map(Some).map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "HTTP line is not UTF-8")
+            });
         }
     }
 }
@@ -225,9 +230,7 @@ fn read_http_body(
 }
 
 fn is_valid_method(method: &str) -> bool {
-    !method.is_empty()
-        && method.len() <= 8
-        && method.bytes().all(|b| b.is_ascii_uppercase())
+    !method.is_empty() && method.len() <= 8 && method.bytes().all(|b| b.is_ascii_uppercase())
 }
 
 fn is_valid_target(target: &str) -> bool {
@@ -241,7 +244,10 @@ fn is_valid_target(target: &str) -> bool {
 
 fn is_valid_header_value(value: &str) -> bool {
     // RFC 9110 field-value: visible ASCII, spaces and horizontal tabs.
-    !value.bytes().any(|b| b == b'\r' || b == b'\n') && value.bytes().all(|b| b == b'\t' || (0x20..=0x7E).contains(&b))
+    !value.bytes().any(|b| b == b'\r' || b == b'\n')
+        && value
+            .bytes()
+            .all(|b| b == b'\t' || (0x20..=0x7E).contains(&b))
 }
 
 fn parse_request_line(line: &str) -> Option<(&str, &str, &str)> {
@@ -258,7 +264,12 @@ fn parse_request_line(line: &str) -> Option<(&str, &str, &str)> {
 
 fn bad_request(stream: &mut TcpStream, status: &str, message: &'static str) -> std::io::Result<()> {
     let payload = json!({"ok": false, "error": message}).to_string();
-    respond(stream, status, "application/json; charset=utf-8", payload.as_bytes())
+    respond(
+        stream,
+        status,
+        "application/json; charset=utf-8",
+        payload.as_bytes(),
+    )
 }
 
 fn method_not_allowed(stream: &mut TcpStream) -> std::io::Result<()> {
@@ -283,13 +294,23 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<RwLock<Brain>>) -> std::i
         Ok(Some(line)) => line,
         Ok(None) => return Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
-            return bad_request(&mut stream, "414 URI Too Long", "Request line is invalid or too long.");
+            return bad_request(
+                &mut stream,
+                "414 URI Too Long",
+                "Request line is invalid or too long.",
+            );
         }
         Err(error) => return Err(error),
     };
     let (method, raw_target, version) = match parse_request_line(&request_line) {
         Some(parts) => parts,
-        None => return bad_request(&mut stream, "400 Bad Request", "Malformed HTTP request line."),
+        None => {
+            return bad_request(
+                &mut stream,
+                "400 Bad Request",
+                "Malformed HTTP request line.",
+            )
+        }
     };
     if version != "HTTP/1.0" && version != "HTTP/1.1" {
         return bad_request(
@@ -341,15 +362,29 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<RwLock<Brain>>) -> std::i
         }
         let (name, value) = match line.split_once(':') {
             Some(parts) => parts,
-            None => return bad_request(&mut stream, "400 Bad Request", "Malformed request header."),
+            None => {
+                return bad_request(&mut stream, "400 Bad Request", "Malformed request header.")
+            }
         };
         let name = name.trim();
-        if name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-') {
-            return bad_request(&mut stream, "400 Bad Request", "Invalid request header name.");
+        if name.is_empty()
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        {
+            return bad_request(
+                &mut stream,
+                "400 Bad Request",
+                "Invalid request header name.",
+            );
         }
         let value = value.trim();
         if !is_valid_header_value(value) {
-            return bad_request(&mut stream, "400 Bad Request", "Invalid request header value.");
+            return bad_request(
+                &mut stream,
+                "400 Bad Request",
+                "Invalid request header value.",
+            );
         }
         if name.eq_ignore_ascii_case("content-length") {
             if content_length.is_some() {
@@ -378,7 +413,11 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<RwLock<Brain>>) -> std::i
                 }
             };
             if parsed > MAX_BODY_BYTES {
-                return bad_request(&mut stream, "413 Payload Too Large", "Request body exceeds 1 MiB.");
+                return bad_request(
+                    &mut stream,
+                    "413 Payload Too Large",
+                    "Request body exceeds 1 MiB.",
+                );
             }
             content_length = Some(parsed);
         } else if name.eq_ignore_ascii_case("transfer-encoding") && !value.is_empty() {
@@ -408,7 +447,11 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<RwLock<Brain>>) -> std::i
 
     let content_length = content_length.unwrap_or(0);
     if content_length > 0 && !(method == "POST" && path == "/api/control") {
-        return bad_request(&mut stream, "400 Bad Request", "This route does not accept a request body.");
+        return bad_request(
+            &mut stream,
+            "400 Bad Request",
+            "This route does not accept a request body.",
+        );
     }
     // Enforce a JSON content type on the control API when the client sends one.
     // Missing Content-Type is still accepted for `curl` convenience.
@@ -416,7 +459,8 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<RwLock<Brain>>) -> std::i
         if let Some(ct) = content_type.as_deref() {
             if !ct.to_ascii_lowercase().contains("application/json") {
                 let payload =
-                    json!({"ok": false, "error": "Content-Type must be application/json."}).to_string();
+                    json!({"ok": false, "error": "Content-Type must be application/json."})
+                        .to_string();
                 return respond(
                     &mut stream,
                     "415 Unsupported Media Type",
@@ -451,7 +495,12 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<RwLock<Brain>>) -> std::i
             "application/json; charset=utf-8",
             br#"{"ok":true,"service":"cortex-lab"}"#,
         ),
-        ("GET", "/favicon.ico") => respond(&mut stream, "204 No Content", "text/plain; charset=utf-8", b""),
+        ("GET", "/favicon.ico") => respond(
+            &mut stream,
+            "204 No Content",
+            "text/plain; charset=utf-8",
+            b"",
+        ),
         ("GET", "/api/state") => {
             let state = match brain.read() {
                 Ok(model) => model.snapshot(),
@@ -465,10 +514,16 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<RwLock<Brain>>) -> std::i
                 }
             };
             match serde_json::to_vec(&state) {
-                Ok(bytes) => respond(&mut stream, "200 OK", "application/json; charset=utf-8", &bytes),
+                Ok(bytes) => respond(
+                    &mut stream,
+                    "200 OK",
+                    "application/json; charset=utf-8",
+                    &bytes,
+                ),
                 Err(error) => {
                     let payload =
-                        json!({"ok":false,"error":format!("Serialization failed: {error}")}).to_string();
+                        json!({"ok":false,"error":format!("Serialization failed: {error}")})
+                            .to_string();
                     respond(
                         &mut stream,
                         "500 Internal Server Error",
@@ -494,13 +549,24 @@ fn control(stream: &mut TcpStream, brain: &Arc<RwLock<Brain>>, body: &[u8]) -> s
     let command: ControlCommand = match serde_json::from_slice(body) {
         Ok(command) => command,
         Err(error) => {
-            let payload = json!({"ok":false,"error":format!("Invalid JSON command: {error}")}).to_string();
-            return respond(stream, "400 Bad Request", "application/json; charset=utf-8", payload.as_bytes());
+            let payload =
+                json!({"ok":false,"error":format!("Invalid JSON command: {error}")}).to_string();
+            return respond(
+                stream,
+                "400 Bad Request",
+                "application/json; charset=utf-8",
+                payload.as_bytes(),
+            );
         }
     };
     if command.action.is_empty() || command.action.len() > 32 {
         let payload = json!({"ok": false, "error": "Unknown or missing action."}).to_string();
-        return respond(stream, "400 Bad Request", "application/json; charset=utf-8", payload.as_bytes());
+        return respond(
+            stream,
+            "400 Bad Request",
+            "application/json; charset=utf-8",
+            payload.as_bytes(),
+        );
     }
 
     // Run the mutation under the write lock, then drop the guard before
@@ -579,16 +645,30 @@ fn control(stream: &mut TcpStream, brain: &Arc<RwLock<Brain>>, body: &[u8]) -> s
                 }
             }
             "associate" => {
-                let cue = command.cue.as_deref().or(command.query.as_deref()).unwrap_or("");
+                let cue = command
+                    .cue
+                    .as_deref()
+                    .or(command.query.as_deref())
+                    .unwrap_or("");
                 let target = command.target.as_deref().unwrap_or("");
-                model.associate(cue, target).map(|()| "Associative trace encoded.".to_owned())
+                model
+                    .associate(cue, target)
+                    .map(|()| "Associative trace encoded.".to_owned())
             }
             "recall" => {
-                let query = command.query.as_deref().or(command.cue.as_deref()).unwrap_or("");
+                let query = command
+                    .query
+                    .as_deref()
+                    .or(command.cue.as_deref())
+                    .unwrap_or("");
                 Ok(model.recall(query))
             }
             "forget" => {
-                let cue = command.cue.as_deref().or(command.query.as_deref()).unwrap_or("");
+                let cue = command
+                    .cue
+                    .as_deref()
+                    .or(command.query.as_deref())
+                    .unwrap_or("");
                 if cue.trim().is_empty() {
                     Err("A cue is required to forget a trace.".to_owned())
                 } else if model.forget_memory(cue) {
@@ -623,10 +703,20 @@ fn control(stream: &mut TcpStream, brain: &Arc<RwLock<Brain>>, body: &[u8]) -> s
     } else {
         "400 Bad Request"
     };
-    respond(stream, status, "application/json; charset=utf-8", response.to_string().as_bytes())
+    respond(
+        stream,
+        status,
+        "application/json; charset=utf-8",
+        response.to_string().as_bytes(),
+    )
 }
 
-fn respond(stream: &mut TcpStream, status: &str, content_type: &str, body: &[u8]) -> std::io::Result<()> {
+fn respond(
+    stream: &mut TcpStream,
+    status: &str,
+    content_type: &str,
+    body: &[u8],
+) -> std::io::Result<()> {
     write!(
         stream,
         "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nReferrer-Policy: no-referrer\r\nPermissions-Policy: accelerometer=(), camera=(), microphone=(), geolocation=()\r\nCross-Origin-Opener-Policy: same-origin\r\nCross-Origin-Resource-Policy: same-origin\r\nContent-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'\r\n\r\n",
@@ -641,7 +731,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn request_line_parser_accepts_only_origin_form_and_known_http_versions_are_checked_by_handler() {
+    fn request_line_parser_accepts_only_origin_form_and_known_http_versions_are_checked_by_handler()
+    {
         assert_eq!(
             parse_request_line("GET /api/state?fresh=1 HTTP/1.1\r\n"),
             Some(("GET", "/api/state?fresh=1", "HTTP/1.1"))
