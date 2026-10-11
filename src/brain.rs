@@ -605,11 +605,14 @@ mod tests {
     fn initializes_a_connected_multiregion_network() {
         let brain = Brain::new();
         assert_eq!(brain.neurons.len(), 1024);
-        assert!(brain.synapses.len() > 2_500);
+        assert!(brain.synapses.len() > 14_000);
         assert_eq!(brain.outgoing.len(), brain.neurons.len());
         assert_eq!(brain.incoming.len(), brain.neurons.len());
         assert!(brain.neurons.iter().any(|n| n.inhibitory));
         assert!(brain.neurons.iter().any(|n| !n.inhibitory));
+        assert!(brain.synapses.iter().any(|s| {
+            brain.neurons[s.pre].region != brain.neurons[s.post].region
+        }));
     }
 
     #[test]
