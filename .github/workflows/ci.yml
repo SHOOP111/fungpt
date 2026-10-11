@@ -33,3 +33,19 @@ jobs:
         run: cargo test --all-targets
       - name: Build optimized binary
         run: cargo build --release
+      - name: Upload Windows executable
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-lab-windows-x86_64
+          path: target/release/fungpt.exe
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload Linux binary
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-lab-linux-x86_64
+          path: target/release/fungpt
+          if-no-files-found: error
+          retention-days: 14
