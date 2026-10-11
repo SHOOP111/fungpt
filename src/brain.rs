@@ -218,7 +218,7 @@ impl Brain {
         self.set_paused(!self.paused);
     }
 
-    pub fn set_speed(&mut self, speed: f32) {
+    pub fn clock_speed(&self) -> f32 {\n        self.speed\n    }\n\n    pub fn set_speed(&mut self, speed: f32) {
         self.speed = speed.clamp(0.25, 8.0);
         self.push_event(format!("Simulation clock set to {:.2}×", self.speed));
     }
