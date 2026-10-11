@@ -49,15 +49,9 @@ fn main() -> std::io::Result<()> {
             })?;
     }
 
-    println!("
-╭────────────────────────────────────────────────────╮
-│  CORTEX LAB · brain-inspired systems workbench     │
-╰────────────────────────────────────────────────────╯
-  Dashboard : http://{bind}
-  Model     : 292 spiking units · sparse recurrent synapses
-  Safety    : localhost-only by default; no telemetry
-  Stop      : Ctrl+C
-");
+    println!(
+        "\n╭────────────────────────────────────────────────────╮\n│  CORTEX LAB · brain-inspired systems workbench     │\n╰────────────────────────────────────────────────────╯\n  Dashboard : http://{bind}\n  Model     : 292 spiking units · sparse recurrent synapses\n  Safety    : localhost-only by default; no telemetry\n  Stop      : Ctrl+C\n"
+    );
     for incoming in listener.incoming() {
         match incoming {
             Ok(stream) => {
