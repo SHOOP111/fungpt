@@ -29,7 +29,15 @@ struct ControlCommand {
 fn main() -> std::io::Result<()> {
     let bind = env::var("BRAINLAB_BIND").unwrap_or_else(|_| "127.0.0.1:8787".to_owned());
     let listener = TcpListener::bind(&bind)?;
-    let brain = Arc::new(Mutex::new(Brain::new()));
+    let requested_scale = env::var("BRAINLAB_SCALE")
+        .ok()
+        .and_then(|value| value.parse::<f32>().ok())
+        .unwrap_or(1.0);
+    let brain = Arc::new(Mutex::new(Brain::with_scale(requested_scale)));
+    let initial_state = brain
+        .lock()
+        .map(|model| model.snapshot())
+        .unwrap_or_else(|_| serde_json::Value::Null);
 
     {
         let simulation = Arc::clone(&brain);
@@ -50,7 +58,10 @@ fn main() -> std::io::Result<()> {
     }
 
     println!(
-        "\n╭────────────────────────────────────────────────────╮\n│  CORTEX LAB · brain-inspired systems workbench     │\n╰────────────────────────────────────────────────────╯\n  Dashboard : http://{bind}\n  Model     : 1,024 spiking units · ~19k recurrent synapses\n  Safety    : localhost-only by default; no telemetry\n  Stop      : Ctrl+C\n"
+        "\n╭────────────────────────────────────────────────────╮\n│  CORTEX LAB · brain-inspired systems workbench     │\n╰────────────────────────────────────────────────────╯\n  Dashboard : http://{bind}\n  Model     : {} neurons · {} synapses\n  Scale     : {:.2}× baseline (BRAINLAB_SCALE)\n  Safety    : localhost-only by default; no telemetry\n  Stop      : Ctrl+C\n",
+        initial_state["meta"]["neurons"],
+        initial_state["meta"]["synapses"],
+        initial_state["meta"]["scale"].as_f64().unwrap_or(1.0)
     );
     for incoming in listener.incoming() {
         match incoming {
@@ -200,7 +211,8 @@ fn control(stream: &mut TcpStream, brain: &Arc<Mutex<Brain>>, body: &[u8]) -> st
             Ok("Offline replay / consolidation pass completed.".to_owned())
         }
         "reset" => {
-            *model = Brain::new();
+            let scale = model.scale();
+            *model = Brain::with_scale(scale);
             Ok("Network and experiment state reset.".to_owned())
         }
         _ => Err(format!("Unknown action: {}", command.action)),
