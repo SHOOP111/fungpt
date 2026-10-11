@@ -1,8 +1,34 @@
+//! Cortical microcircuit model: sparse recurrent LIF network with STDP,
+//! scalar neuromodulator state, and a tiny inspectable associative memory.
+//!
+//! Design goals: deterministic construction from a fixed seed, bounded
+//! allocations in the hot loop, no panics on user-controlled input, and a
+//! snapshot shape that the dashboard can render without extra computation.
+
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::{HashSet, VecDeque};
 
 const DT: f32 = 0.001;
+
+/// Maximum number of recent event strings retained.
+const EVENT_CAP: usize = 18;
+/// Maximum number of associative traces retained (oldest-first eviction).
+const MEMORY_CAP: usize = 80;
+/// Maximum accepted characters per cue / target field.
+const MEMORY_FIELD_MAX_CHARS: usize = 220;
+/// Upper bound for external drive after repeated stimulation.
+const DRIVE_MAX: f32 = 60.0;
+/// Upper bound for a single stimulus intensity request.
+const STIMULUS_MAX: f32 = 40.0;
+/// Synaptic current kick per unit weight when a presynaptic spike arrives.
+const SYNAPTIC_GAIN: f32 = 74.0;
+/// STDP weight magnitude bounds.
+const WEIGHT_MIN: f32 = 0.025;
+const WEIGHT_MAX: f32 = 0.85;
+/// How many sampled links the snapshot exposes at most (keeps large scales usable).
+const LINK_SAMPLE_TARGET: usize = 1050;
+
 const REGION_DEFS: [RegionDef; 7] = [
     RegionDef { name: "Visual cortex", short: "VISUAL", color: "#78a9ff", count: 160 },
     RegionDef { name: "Thalamus", short: "THALAMUS", color: "#70e1d1", count: 96 },
@@ -61,7 +87,7 @@ pub struct Brain {
     scale: f32,
     region_counts: [usize; 7],
     neurons: Vec<Neuron>,
-    // Reuse the spike index buffer each timestep to avoid repeated heap allocation.
+    // Reused every step so the hot loop never allocates.
     spike_buffer: Vec<usize>,
     synapses: Vec<Synapse>,
     outgoing: Vec<Vec<usize>>,
@@ -84,12 +110,21 @@ pub struct Brain {
 }
 
 impl Brain {
+    /// Default 1x network.
     pub fn new() -> Self {
         Self::with_scale(1.0)
     }
 
+    /// Build a network scaled around the 1024-neuron baseline.
+    ///
+    /// Non-finite scales fall back to 1x; finite values are clamped to
+    /// 0.25..=8.0 so a hostile `BRAINLAB_SCALE` cannot OOM the process.
     pub fn with_scale(requested_scale: f32) -> Self {
-        let scale = if requested_scale.is_finite() { requested_scale.clamp(0.25, 8.0) } else { 1.0 };
+        let scale = if requested_scale.is_finite() {
+            requested_scale.clamp(0.25, 8.0)
+        } else {
+            1.0
+        };
         let region_counts: [usize; 7] = std::array::from_fn(|i| {
             (REGION_DEFS[i].count as f32 * scale).round().max(1.0) as usize
         });
@@ -97,15 +132,18 @@ impl Brain {
         for i in 0..REGION_DEFS.len() {
             offsets[i + 1] = offsets[i] + region_counts[i];
         }
+        let total = offsets[7];
 
         let mut brain = Self {
             scale,
             region_counts,
-            neurons: Vec::with_capacity(offsets[7]),
-            spike_buffer: Vec::with_capacity(offsets[7].min(256).max(40)),
+            neurons: Vec::with_capacity(total),
+            // Worst case every neuron fires in one tick; keep a useful
+            // initial capacity without reserving `total` up front.
+            spike_buffer: Vec::with_capacity((total / 8).clamp(64, 2048)),
             synapses: Vec::new(),
-            outgoing: vec![Vec::new(); offsets[7]],
-            incoming: vec![Vec::new(); offsets[7]],
+            outgoing: vec![Vec::new(); total],
+            incoming: vec![Vec::new(); total],
             offsets,
             tick: 0,
             paused: false,
@@ -117,7 +155,7 @@ impl Brain {
             serotonin: 0.56,
             reward_pulses: 0,
             total_spikes: 0,
-            events: VecDeque::new(),
+            events: VecDeque::with_capacity(EVENT_CAP),
             memories: Vec::new(),
             recall_result: "No retrieval performed yet.".to_owned(),
             rng: 0xA076_1D64_78BD_642F,
@@ -150,12 +188,19 @@ impl Brain {
             }
         }
 
+        // Reserve roughly the expected edge count up front so construction
+        // does not repeatedly reallocate the edge list.
+        brain.synapses.reserve(total * 19);
         for pre in 0..brain.neurons.len() {
             let pre_region = brain.neurons[pre].region;
             let degree = 14 + brain.rand_usize(11);
             for _ in 0..degree {
                 let target_region = brain.choose_target_region(pre_region);
-                let local = brain.rand_usize(brain.region_counts[target_region]);
+                let region_size = brain.region_counts[target_region];
+                if region_size == 0 {
+                    continue;
+                }
+                let local = brain.rand_usize(region_size);
                 let post = brain.offsets[target_region] + local;
                 if post == pre {
                     continue;
@@ -173,7 +218,8 @@ impl Brain {
             }
         }
 
-        brain.push_event(format!("CORTEX LAB ONLINE · {} model neurons initialized", brain.neurons.len()));
+        let neuron_count = brain.neurons.len();
+        brain.push_event(format!("CORTEX LAB ONLINE · {neuron_count} model neurons initialized"));
         brain.push_event("Sparse recurrent connectome assembled · excitatory / inhibitory balance enabled");
         brain.push_event("Spike-timing-dependent plasticity armed");
         brain
@@ -181,6 +227,7 @@ impl Brain {
 
     fn rand_u64(&mut self) -> u64 {
         // Small deterministic xorshift generator: reproducible runs, no runtime RNG dependency.
+        // Seed is fixed non-zero; the state can never get stuck at zero from here.
         let mut x = self.rng;
         x ^= x << 13;
         x ^= x >> 7;
@@ -194,7 +241,11 @@ impl Brain {
     }
 
     fn rand_usize(&mut self, upper: usize) -> usize {
-        if upper == 0 { 0 } else { (self.rand_u64() as usize) % upper }
+        if upper == 0 {
+            0
+        } else {
+            (self.rand_u64() as usize) % upper
+        }
     }
 
     fn choose_target_region(&mut self, from: usize) -> usize {
@@ -211,7 +262,7 @@ impl Brain {
     }
 
     fn push_event(&mut self, message: impl Into<String>) {
-        if self.events.len() >= 18 {
+        if self.events.len() >= EVENT_CAP {
             self.events.pop_back();
         }
         self.events.push_front(message.into());
@@ -225,75 +276,132 @@ impl Brain {
 
         // Prefer a full name or abbreviation. Partial names are accepted only when unique,
         // so an ambiguous query such as "cortex" cannot silently target the visual region.
-        if let Some(index) = REGION_DEFS.iter().position(|region| {
-            region.name.eq_ignore_ascii_case(needle) || region.short.eq_ignore_ascii_case(needle)
-        }) {
+        if let Some(index) = REGION_DEFS
+            .iter()
+            .position(|region| region.name.eq_ignore_ascii_case(needle) || region.short.eq_ignore_ascii_case(needle))
+        {
             return Some(index);
         }
 
-        let mut matches = REGION_DEFS.iter().enumerate().filter_map(|(index, region)| {
-            (region.name.to_lowercase().contains(&needle.to_lowercase())
-                || region.short.to_lowercase().contains(&needle.to_lowercase()))
-            .then_some(index)
-        });
-        let first = matches.next()?;
-        if matches.next().is_some() {
-            None
-        } else {
-            Some(first)
+        let lowered = needle.to_lowercase();
+        let mut matched: Option<usize> = None;
+        for (index, region) in REGION_DEFS.iter().enumerate() {
+            if region.name.to_lowercase().contains(&lowered) || region.short.to_lowercase().contains(&lowered) {
+                if matched.is_some() {
+                    return None; // ambiguous
+                }
+                matched = Some(index);
+            }
         }
+        matched
     }
 
+    /// Pause or resume the simulation clock.
     pub fn set_paused(&mut self, paused: bool) {
         self.paused = paused;
-        self.push_event(if paused { "Simulation paused by operator" } else { "Simulation resumed" });
+        self.push_event(if paused {
+            "Simulation paused by operator"
+        } else {
+            "Simulation resumed"
+        });
     }
 
+    /// Flip the paused flag.
     pub fn toggle_pause(&mut self) {
         self.set_paused(!self.paused);
     }
 
+    /// Current paused state.
+    #[allow(dead_code)]
+    pub fn is_paused(&self) -> bool {
+        self.paused
+    }
+
+    /// Current clock multiplier.
     pub fn clock_speed(&self) -> f32 {
         self.speed
     }
 
+    /// Configured network scale (0.25..=8.0).
     pub fn scale(&self) -> f32 {
         self.scale
     }
 
+    /// Number of neuron units.
+    #[allow(dead_code)]
+    pub fn neuron_count(&self) -> usize {
+        self.neurons.len()
+    }
+
+    /// Number of directed synapses.
+    #[allow(dead_code)]
+    pub fn synapse_count(&self) -> usize {
+        self.synapses.len()
+    }
+
+    /// Whether excitatory STDP updates are applied.
+    #[allow(dead_code)]
+    pub fn is_plastic(&self) -> bool {
+        self.plasticity
+    }
+
+    /// Set the clock multiplier; non-finite values fall back to 1x.
     pub fn set_speed(&mut self, speed: f32) {
         // Keep the simulation scheduler safe even when this API is reused outside HTTP/JSON.
-        self.speed = if speed.is_finite() { speed.clamp(0.25, 8.0) } else { 1.0 };
-        self.push_event(format!("Simulation clock set to {:.2}×", self.speed));
+        self.speed = if speed.is_finite() {
+            speed.clamp(0.25, 8.0)
+        } else {
+            1.0
+        };
+        let speed = self.speed;
+        self.push_event(format!("Simulation clock set to {speed:.2}×"));
     }
 
+    /// Explicitly enable or disable plasticity (prefer over toggle for UI sync).
+    pub fn set_plasticity(&mut self, enabled: bool) {
+        if self.plasticity != enabled {
+            self.toggle_plasticity();
+        }
+    }
+
+    /// Flip excitatory STDP on/off.
     pub fn toggle_plasticity(&mut self) {
         self.plasticity = !self.plasticity;
-        self.push_event(if self.plasticity { "Synaptic plasticity enabled" } else { "Synaptic plasticity frozen" });
+        self.push_event(if self.plasticity {
+            "Synaptic plasticity enabled"
+        } else {
+            "Synaptic plasticity frozen"
+        });
     }
 
+    /// Inject depolarizing drive into a random subset of a region.
     pub fn stimulate(&mut self, region_name: &str, intensity: f32) -> Result<(), String> {
         if !intensity.is_finite() {
             return Err("Stimulus intensity must be a finite number.".to_owned());
         }
-        let region = self.find_region(region_name)
+        let region = self
+            .find_region(region_name)
             .ok_or_else(|| format!("Unknown or ambiguous brain region: {region_name}"))?;
-        let intensity = intensity.clamp(0.0, 40.0);
+        let intensity = intensity.clamp(0.0, STIMULUS_MAX);
         let start = self.offsets[region];
         let end = self.offsets[region + 1];
+        if end <= start {
+            return Err(format!("Region {} has no neurons.", REGION_DEFS[region].name));
+        }
         let count = ((end - start) / 3).max(6);
         for _ in 0..count {
             let idx = start + self.rand_usize(end - start);
             self.neurons[idx].external_drive =
-                (self.neurons[idx].external_drive + intensity * (0.55 + self.rand_f32() * 0.85))
-                    .clamp(0.0, 60.0);
+                (self.neurons[idx].external_drive + intensity * (0.55 + self.rand_f32() * 0.85)).clamp(0.0, DRIVE_MAX);
         }
         self.acetylcholine = (self.acetylcholine + 0.07).min(1.0);
         self.noradrenaline = (self.noradrenaline + 0.035).min(1.0);
-        self.push_event(format!("INPUT · {} stimulated at {:.1} mV drive", REGION_DEFS[region].name, intensity));
+        let label = REGION_DEFS[region].name;
+        self.push_event(format!("INPUT · {label} stimulated at {intensity:.1} mV drive"));
         Ok(())
     }
 
+    /// Dopamine-like pulse plus a small multiplicative bump to excitatory weights.
     pub fn reward(&mut self, magnitude: f32) {
         if !magnitude.is_finite() {
             self.push_event("REWARD REJECTED · magnitude must be finite");
@@ -302,14 +410,16 @@ impl Brain {
         let magnitude = magnitude.clamp(0.05, 1.0);
         self.dopamine = (self.dopamine + magnitude * 0.48).min(1.0);
         self.reward_pulses += 1;
+        let factor = 1.0 + magnitude * 0.002;
         for synapse in &mut self.synapses {
             if synapse.weight > 0.0 {
-                synapse.weight = (synapse.weight * (1.0 + magnitude * 0.002)).min(0.85);
+                synapse.weight = (synapse.weight * factor).min(WEIGHT_MAX);
             }
         }
         self.push_event(format!("REWARD PREDICTION ERROR · dopamine pulse +{:.2}", magnitude * 0.48));
     }
 
+    /// Arousal/salience perturbation aimed at the amygdala population.
     pub fn induce_stress(&mut self, magnitude: f32) {
         if !magnitude.is_finite() {
             self.push_event("STRESS PERTURBATION REJECTED · magnitude must be finite");
@@ -322,6 +432,7 @@ impl Brain {
         self.push_event(format!("SALience / stress signal · arousal +{amount:.2}"));
     }
 
+    /// Attention/encoding perturbation aimed at the visual population.
     pub fn novelty(&mut self) {
         self.acetylcholine = (self.acetylcholine + 0.36).min(1.0);
         self.noradrenaline = (self.noradrenaline + 0.18).min(1.0);
@@ -329,14 +440,15 @@ impl Brain {
         self.push_event("NOVELTY DETECTED · attention and encoding gates increased");
     }
 
+    /// Store (or overwrite, case-insensitively) a cue → target trace.
     pub fn associate(&mut self, cue: &str, target: &str) -> Result<(), String> {
         let cue = cue.trim();
         let target = target.trim();
         if cue.is_empty() || target.is_empty() {
             return Err("Both cue and target are required.".to_owned());
         }
-        if cue.len() > 220 || target.len() > 220 {
-            return Err("Keep each memory field under 220 characters.".to_owned());
+        if cue.chars().count() > MEMORY_FIELD_MAX_CHARS || target.chars().count() > MEMORY_FIELD_MAX_CHARS {
+            return Err(format!("Keep each memory field under {MEMORY_FIELD_MAX_CHARS} characters."));
         }
         let existing = self.memories.iter().position(|m| m.cue.eq_ignore_ascii_case(cue));
         let trace = MemoryTrace {
@@ -349,7 +461,7 @@ impl Brain {
         if let Some(index) = existing {
             self.memories[index] = trace;
         } else {
-            if self.memories.len() >= 80 {
+            if self.memories.len() >= MEMORY_CAP {
                 self.memories.remove(0);
             }
             self.memories.push(trace);
@@ -362,6 +474,30 @@ impl Brain {
         Ok(())
     }
 
+    /// Remove a single trace by cue (case-insensitive). Returns true when removed.
+    pub fn forget_memory(&mut self, cue: &str) -> bool {
+        let cue = cue.trim();
+        if cue.is_empty() {
+            return false;
+        }
+        if let Some(index) = self.memories.iter().position(|m| m.cue.eq_ignore_ascii_case(cue)) {
+            let removed = self.memories.remove(index);
+            self.push_event(format!("FORGETTING · trace “{}” removed", Self::shorten(&removed.cue, 58)));
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Remove every stored trace.
+    pub fn clear_memories(&mut self) {
+        let count = self.memories.len();
+        self.memories.clear();
+        self.recall_result = "Memory store cleared.".to_owned();
+        self.push_event(format!("FORGETTING · {count} associative traces cleared"));
+    }
+
+    /// Query the store with lexical + hash-embedding similarity.
     pub fn recall(&mut self, query: &str) -> String {
         let query = query.trim();
         if query.is_empty() {
@@ -370,23 +506,32 @@ impl Brain {
         }
         let query_embed = Self::embed(query);
         let query_tokens = Self::tokens(query);
-        let best = self.memories.iter().enumerate().map(|(i, m)| {
-            let emb = Self::embed(&m.cue);
-            let cosine = query_embed.iter().zip(emb.iter()).map(|(a, b)| a * b).sum::<f32>();
-            let tokens = Self::tokens(&m.cue);
-            let intersection = query_tokens.iter().filter(|t| tokens.contains(t)).count() as f32;
-            let union = (query_tokens.len() + tokens.len()).saturating_sub(intersection as usize).max(1) as f32;
-            let lexical = intersection / union;
-            let score = (cosine * 0.58 + lexical * 0.72) * m.strength;
-            (i, score)
-        }).max_by(|a, b| a.1.total_cmp(&b.1));
+        let best = self
+            .memories
+            .iter()
+            .enumerate()
+            .map(|(i, m)| {
+                let emb = Self::embed(&m.cue);
+                let cosine = query_embed.iter().zip(emb.iter()).map(|(a, b)| a * b).sum::<f32>();
+                let tokens = Self::tokens(&m.cue);
+                let intersection = query_tokens.iter().filter(|t| tokens.contains(t)).count() as f32;
+                let union = (query_tokens.len() + tokens.len()).saturating_sub(intersection as usize).max(1) as f32;
+                let lexical = intersection / union;
+                let score = (cosine * 0.58 + lexical * 0.72) * m.strength;
+                (i, score)
+            })
+            .max_by(|a, b| a.1.total_cmp(&b.1));
 
         let result = if let Some((index, score)) = best {
             if score >= 0.12 {
                 let memory = &mut self.memories[index];
                 memory.retrievals += 1;
                 memory.strength = (memory.strength + 0.025).min(1.0);
-                format!("{}  ·  match {:.0}%  ·  retrieved {}×", memory.target, score.mul_add(100.0, 0.0).clamp(0.0, 100.0), memory.retrievals)
+                let pct = score.mul_add(100.0, 0.0).clamp(0.0, 100.0);
+                format!(
+                    "{}  ·  match {pct:.0}%  ·  retrieved {}×",
+                    memory.target, memory.retrievals
+                )
             } else {
                 "No strong association found. Teach the model this cue first.".to_owned()
             }
@@ -405,15 +550,18 @@ impl Brain {
         if let Some(region) = self.find_region(name) {
             let start = self.offsets[region];
             let end = self.offsets[region + 1];
+            if end <= start {
+                return;
+            }
             for _ in 0..((end - start) / 2).max(4) {
                 let index = start + self.rand_usize(end - start);
                 self.neurons[index].external_drive =
-                    (self.neurons[index].external_drive + intensity * (0.65 + self.rand_f32() * 0.70))
-                        .clamp(0.0, 60.0);
+                    (self.neurons[index].external_drive + intensity * (0.65 + self.rand_f32() * 0.70)).clamp(0.0, DRIVE_MAX);
             }
         }
     }
 
+    /// Simplified offline replay: strengthen traces, renormalize weak weights.
     pub fn sleep_consolidation(&mut self) {
         // A deliberately simplified replay/consolidation phase, not a physiological sleep model.
         for memory in &mut self.memories {
@@ -421,8 +569,9 @@ impl Brain {
         }
         for synapse in &mut self.synapses {
             synapse.weight *= 0.9994;
-            if synapse.weight.abs() < 0.025 {
-                synapse.weight = synapse.weight.signum() * 0.025;
+            if synapse.weight.abs() < WEIGHT_MIN {
+                // `signum()` maps +0.0 to +1.0, so a dead zero edge still recovers.
+                synapse.weight = synapse.weight.signum() * WEIGHT_MIN;
             }
         }
         self.acetylcholine = (self.acetylcholine * 0.55).max(0.05);
@@ -454,16 +603,21 @@ impl Brain {
             v[idx] += if h & 1 == 0 { 1.0 } else { -1.0 };
         }
         let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-6);
-        for x in &mut v { *x /= norm; }
+        for x in &mut v {
+            *x /= norm;
+        }
         v
     }
 
     fn shorten(text: &str, max: usize) -> String {
         let mut out = text.chars().take(max).collect::<String>();
-        if text.chars().count() > max { out.push('…'); }
+        if text.chars().count() > max {
+            out.push('…');
+        }
         out
     }
 
+    /// Advance the network by one 1 ms tick. No-op while paused.
     pub fn step(&mut self) {
         if self.paused {
             return;
@@ -502,8 +656,17 @@ impl Brain {
             }
             let effective_threshold = n.threshold - self.acetylcholine * 0.65;
             let dv = (n.rest - n.v + n.synaptic_current + n.external_drive + n.tonic_drive + noise - n.adaptation)
-                * DT / n.tau;
+                * DT
+                / n.tau;
             n.v += dv;
+            // Keep adversarial / buggy callers from injecting NaN through public setters.
+            if !n.v.is_finite() {
+                n.v = n.rest;
+                n.synaptic_current = 0.0;
+                n.external_drive = 0.0;
+                n.adaptation = 0.0;
+                continue;
+            }
             if n.v >= effective_threshold {
                 n.fired = true;
                 n.v = -62.5;
@@ -519,15 +682,17 @@ impl Brain {
         for &pre in &self.spike_buffer {
             let pre_trace = self.neurons[pre].pre_trace;
             let inhibitory = self.neurons[pre].inhibitory;
+            // Copy edge list indices first: `outgoing[pre]` is never mutated here,
+            // but copying avoids holding a borrow across the weight update.
             for edge in self.outgoing[pre].iter().copied() {
                 let post = self.synapses[edge].post;
                 if self.plasticity && !inhibitory {
                     let depression = 0.0010 * self.neurons[post].post_trace;
                     let w = self.synapses[edge].weight;
-                    self.synapses[edge].weight = (w.abs() - depression).clamp(0.025, 0.85) * w.signum();
+                    self.synapses[edge].weight = (w.abs() - depression).clamp(WEIGHT_MIN, WEIGHT_MAX) * w.signum();
                 }
                 let weight = self.synapses[edge].weight;
-                self.neurons[post].synaptic_current += weight * 74.0;
+                self.neurons[post].synaptic_current += weight * SYNAPTIC_GAIN;
             }
             self.neurons[pre].pre_trace = (pre_trace + 1.0).min(6.0);
         }
@@ -541,7 +706,7 @@ impl Brain {
                     }
                     let w = self.synapses[edge].weight;
                     let potentiation = 0.00135 * self.neurons[pre].pre_trace;
-                    self.synapses[edge].weight = (w.abs() + potentiation).clamp(0.025, 0.85) * w.signum();
+                    self.synapses[edge].weight = (w.abs() + potentiation).clamp(WEIGHT_MIN, WEIGHT_MAX) * w.signum();
                 }
             }
             self.neurons[post].post_trace = (self.neurons[post].post_trace + 1.0).min(6.0);
@@ -549,27 +714,51 @@ impl Brain {
 
         if self.tick % 1000 == 0 {
             let active = self.neurons.iter().filter(|n| n.rate_hz > 1.0).count();
-            self.push_event(format!("NETWORK · t={:.1}s · {active} responsive units · {} cumulative spikes",
-                self.tick as f32 * DT, self.total_spikes));
+            let elapsed = self.tick as f32 * DT;
+            let total = self.total_spikes;
+            self.push_event(format!(
+                "NETWORK · t={elapsed:.1}s · {active} responsive units · {total} cumulative spikes"
+            ));
         }
     }
 
+    /// Full dashboard snapshot. Holds no locks itself; callers must synchronize.
     pub fn snapshot(&self) -> Value {
-        let nodes: Vec<Value> = self.neurons.iter().enumerate().map(|(id, n)| json!({
-            "id": id,
-            "region": n.region,
-            "v": (n.v * 100.0).round() / 100.0,
-            "rate": (n.rate_hz * 100.0).round() / 100.0,
-            "fired": n.fired,
-            "inhibitory": n.inhibitory,
-        })).collect();
+        // Build per-neuron payload once and reuse the aggregates for `meta`
+        // so large networks are scanned as few times as possible.
+        let mut nodes: Vec<Value> = Vec::with_capacity(self.neurons.len());
+        let mut firing_now: usize = 0;
+        let mut responsive: usize = 0;
+        for (id, n) in self.neurons.iter().enumerate() {
+            if n.fired {
+                firing_now += 1;
+            }
+            if n.rate_hz > 1.0 {
+                responsive += 1;
+            }
+            nodes.push(json!({
+                "id": id,
+                "region": n.region,
+                "v": (n.v * 100.0).round() / 100.0,
+                "rate": (n.rate_hz * 100.0).round() / 100.0,
+                "fired": n.fired,
+                "inhibitory": n.inhibitory,
+            }));
+        }
 
-        let regions: Vec<Value> = REGION_DEFS.iter().enumerate().map(|(region, def)| {
+        let mut regions: Vec<Value> = Vec::with_capacity(REGION_DEFS.len());
+        for (region, def) in REGION_DEFS.iter().enumerate() {
             let start = self.offsets[region];
-            let slice = &self.neurons[start..self.offsets[region + 1]];
-            let rate = slice.iter().map(|n| n.rate_hz).sum::<f32>() / slice.len() as f32;
+            let end = self.offsets[region + 1];
+            let slice = &self.neurons[start..end];
+            let rate = if slice.is_empty() {
+                0.0
+            } else {
+                slice.iter().map(|n| n.rate_hz).sum::<f32>() / slice.len() as f32
+            };
             let active = slice.iter().filter(|n| n.rate_hz > 1.0).count();
-            json!({
+            let activity = if slice.is_empty() { 0.0 } else { active as f32 / slice.len() as f32 };
+            regions.push(json!({
                 "id": region,
                 "name": def.name,
                 "short": def.short,
@@ -577,16 +766,20 @@ impl Brain {
                 "count": self.region_counts[region],
                 "mean_rate": (rate * 100.0).round() / 100.0,
                 "active": active,
-                "activity": active as f32 / slice.len() as f32,
-            })
-        }).collect();
+                "activity": activity,
+            }));
+        }
 
-        let stride = (self.synapses.len() / 1050).max(1);
-        let links: Vec<Value> = self.synapses.iter().step_by(stride).map(|s| json!({
-            "source": s.pre,
-            "target": s.post,
-            "weight": (s.weight * 1000.0).round() / 1000.0,
-        })).collect();
+        let stride = (self.synapses.len() / LINK_SAMPLE_TARGET).max(1);
+        let link_estimate = (self.synapses.len() + stride - 1) / stride;
+        let mut links: Vec<Value> = Vec::with_capacity(link_estimate);
+        for s in self.synapses.iter().step_by(stride) {
+            links.push(json!({
+                "source": s.pre,
+                "target": s.post,
+                "weight": (s.weight * 1000.0).round() / 1000.0,
+            }));
+        }
 
         json!({
             "meta": {
@@ -601,8 +794,8 @@ impl Brain {
                 "scale": self.scale,
                 "plasticity": self.plasticity,
                 "spikes": self.total_spikes,
-                "firing_now": self.neurons.iter().filter(|n| n.fired).count(),
-                "responsive": self.neurons.iter().filter(|n| n.rate_hz > 1.0).count(),
+                "firing_now": firing_now,
+                "responsive": responsive,
                 "reward_pulses": self.reward_pulses,
             },
             "regions": regions,
@@ -622,7 +815,9 @@ impl Brain {
 }
 
 impl Default for Brain {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]

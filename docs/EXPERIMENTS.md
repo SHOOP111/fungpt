@@ -26,15 +26,16 @@ These short protocols are designed to make the stateful model easier to explore.
 
 The reward action is a coarse reward-like perturbation plus a small positive-weight scaling rule. It is not a faithful biological reward prediction error or a full reinforcement-learning system.
 
-## 3. Associative trace and retrieval
+## 3. Associative trace, retrieval, and forgetting
 
-**Question:** how sensitive is the memory lookup to cue overlap?
+**Question:** how sensitive is the memory lookup to cue overlap, and how does removal behave?
 
 1. Encode “favorite color” → “deep blue”.
 2. Retrieve with “favorite color”, then try “color”, “favorite”, and “favorite animal”.
 3. Observe the returned match score and retrieval count.
 4. Encode a second association with shared words and compare which trace is returned.
 5. Apply offline replay and inspect trace strengths.
+6. Shift+Click the first trace (or use Forget with its cue), verify it no longer retrieves, then Clear all and verify the empty-store message.
 
 This experiment is about a small deterministic lexical/hash similarity baseline. It cannot infer facts or reliably retrieve arbitrary semantic paraphrases.
 

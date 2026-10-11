@@ -48,7 +48,7 @@ presynaptic spike: |w| <- clamp(|w| - 0.00100 * post_trace, 0.025, 0.85)
 postsynaptic spike: |w| <- clamp(|w| + 0.00135 * pre_trace, 0.025, 0.85)
 ```
 
-The presynaptic edge sign is retained, and inhibitory-source edges do not undergo this excitatory STDP update. Simultaneous events are processed in discrete order within a time step, so this is an intentionally simple approximation of spike-timing-dependent plasticity. The UI can freeze or unfreeze the rule. A reward event increases dopamine-like state and applies a small multiplicative update to positive synaptic weights; it is not a detailed three-factor biological learning rule.
+The presynaptic edge sign is retained, and inhibitory-source edges do not undergo this excitatory STDP update. Simultaneous events are processed in discrete order within a time step, so this is an intentionally simple approximation of spike-timing-dependent plasticity. The UI and API can set the rule explicitly (`enabled:true/false`) or toggle it for backwards compatibility. A reward event increases dopamine-like state and applies a small multiplicative update to positive synaptic weights; it is not a detailed three-factor biological learning rule. Weights are clamped to 0.025–0.85 magnitude and external drive to 0–60 mV so repeated stimulation cannot diverge.
 
 ## Modulatory signals
 
@@ -68,13 +68,13 @@ Memory traces store a cue, target, strength, retrieval count and creation time. 
 1. A deterministic 48-dimensional token-hash embedding, compared by cosine similarity.
 2. Token Jaccard overlap, which rewards shared words.
 
-The resulting score is multiplied by trace strength. A sufficiently strong match returns its target and increments retrieval count; successful retrieval nudges strength upward. The offline replay action nudges all trace strengths and gently renormalizes synaptic magnitudes. This is transparent, tiny associative lookup—not episodic memory, natural language comprehension or semantic reasoning.
+The resulting score is multiplied by trace strength. A sufficiently strong match returns its target and increments retrieval count; successful retrieval nudges strength upward. The offline replay action nudges all trace strengths and gently renormalizes synaptic magnitudes. Single traces can be removed with `forget` (case-insensitive cue match) and the whole store with `clear_memory`; both are exposed in the dashboard (Shift+Click a trace, Forget button, Clear all). The store holds at most 80 traces (oldest-first eviction) and 220 characters per field. This is transparent, tiny associative lookup—not episodic memory, natural language comprehension or semantic reasoning.
 
 ## Reproducibility and runtime
 
 Network construction uses a fixed-seed xorshift generator so identical scale configurations begin with the same network. Stimuli and subsequent random draws change the trajectory deterministically for a given sequence of actions, barring changes to runtime timing or implementation.
 
-The Rust process holds state behind a mutex. A simulation thread advances the network, while a local HTTP server serves a JSON snapshot and accepts control actions. The dashboard samples state periodically; it does not compute neural dynamics itself.
+The Rust process holds state behind an `RwLock`: the simulation thread and control handler take the write side (step / mutate), while snapshot serving takes the read side so concurrent dashboard tabs share reads. The snapshot builds the per-neuron payload once and reuses firing/responsive aggregates for `meta`; links are stride-sampled to ~1,050 edges. The step loop reuses a spike buffer (no hot-loop allocation), guards membrane state against non-finite values, and emits a summary event every 1,000 ticks (1 s model time). The dashboard samples state periodically with a single-in-flight guard, fetch timeouts, cached layout by network signature, and slower polling when hidden or offline; it does not compute neural dynamics itself.
 
 ## Interpretation
 

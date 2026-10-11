@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 description = "An interactive brain-inspired spiking neural network research workbench"
 license = "MIT"
+repository = "https://github.com/SHOOP111/fungpt"
+readme = "README.md"
+keywords = ["neuroscience", "simulation", "spiking", "research", "visualization"]
+categories = ["science", "visualization"]
+rust-version = "1.75"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
