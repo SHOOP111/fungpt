@@ -58,6 +58,8 @@ struct MemoryTrace {
 }
 
 pub struct Brain {
+    scale: f32,
+    region_counts: [usize; 7],
     neurons: Vec<Neuron>,
     synapses: Vec<Synapse>,
     outgoing: Vec<Vec<usize>>,
@@ -81,12 +83,22 @@ pub struct Brain {
 
 impl Brain {
     pub fn new() -> Self {
+        Self::with_scale(1.0)
+    }
+
+    pub fn with_scale(requested_scale: f32) -> Self {
+        let scale = if requested_scale.is_finite() { requested_scale.clamp(0.25, 8.0) } else { 1.0 };
+        let region_counts: [usize; 7] = std::array::from_fn(|i| {
+            (REGION_DEFS[i].count as f32 * scale).round().max(1.0) as usize
+        });
         let mut offsets = [0usize; 8];
         for i in 0..REGION_DEFS.len() {
-            offsets[i + 1] = offsets[i] + REGION_DEFS[i].count;
+            offsets[i + 1] = offsets[i] + region_counts[i];
         }
 
         let mut brain = Self {
+            scale,
+            region_counts,
             neurons: Vec::with_capacity(offsets[7]),
             synapses: Vec::new(),
             outgoing: vec![Vec::new(); offsets[7]],
@@ -108,8 +120,8 @@ impl Brain {
             rng: 0xA076_1D64_78BD_642F,
         };
 
-        for (region, def) in REGION_DEFS.iter().enumerate() {
-            for local in 0..def.count {
+        for (region, _def) in REGION_DEFS.iter().enumerate() {
+            for local in 0..brain.region_counts[region] {
                 let inhibitory = local % 5 == 0;
                 let v = -65.0 + brain.rand_f32() * 3.0;
                 let threshold = -50.5 + brain.rand_f32() * 1.8;
@@ -140,7 +152,7 @@ impl Brain {
             let degree = 14 + brain.rand_usize(11);
             for _ in 0..degree {
                 let target_region = brain.choose_target_region(pre_region);
-                let local = brain.rand_usize(REGION_DEFS[target_region].count);
+                let local = brain.rand_usize(brain.region_counts[target_region]);
                 let post = brain.offsets[target_region] + local;
                 if post == pre {
                     continue;
@@ -223,6 +235,10 @@ impl Brain {
 
     pub fn clock_speed(&self) -> f32 {
         self.speed
+    }
+
+    pub fn scale(&self) -> f32 {
+        self.scale
     }
 
     pub fn set_speed(&mut self, speed: f32) {
@@ -520,7 +536,7 @@ impl Brain {
                 "name": def.name,
                 "short": def.short,
                 "color": def.color,
-                "count": def.count,
+                "count": self.region_counts[region],
                 "mean_rate": (rate * 100.0).round() / 100.0,
                 "active": active,
                 "activity": active as f32 / slice.len() as f32,
@@ -544,6 +560,7 @@ impl Brain {
                 "time_s": (self.tick as f32 * DT * 100.0).round() / 100.0,
                 "paused": self.paused,
                 "speed": self.speed,
+                "scale": self.scale,
                 "plasticity": self.plasticity,
                 "spikes": self.total_spikes,
                 "firing_now": self.neurons.iter().filter(|n| n.fired).count(),
@@ -573,6 +590,16 @@ impl Default for Brain {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn configured_scale_changes_network_size_with_a_safe_bound() {
+        let doubled = Brain::with_scale(2.0);
+        assert_eq!(doubled.neurons.len(), 2048);
+        let bounded = Brain::with_scale(1000.0);
+        assert_eq!(bounded.neurons.len(), 8192);
+        let invalid = Brain::with_scale(f32::NAN);
+        assert_eq!(invalid.neurons.len(), 1024);
+    }
 
     #[test]
     fn initializes_a_connected_multiregion_network() {
