@@ -113,7 +113,7 @@ The test suite covers network initialization/connectivity, response to stimulati
 ## Limitations worth keeping in mind
 
 - The 1,024 units are still a deliberately reduced-order model; the human brain has orders of magnitude more neurons and vastly more complex cell types and connectivity.
-- LIF dynamics, topology, time constants, synaptic delays and weights are simplified. There are no realistic morphologies, detailed ion channels, glia, endocrine loops or whole-brain anatomical constraints.
+- LIF dynamics, topology, time constants and weights are simplified; explicit axonal conduction and synaptic-delay queues are not modeled. There are no realistic morphologies, detailed ion channels, glia, endocrine loops or whole-brain anatomical constraints.
 - The four modulator variables are qualitative control signals, not physical measurements. Reward-induced weight updates and replay are exploratory rules.
 - The memory lookup uses token overlap plus a deterministic hash embedding. It is useful for inspecting association and retrieval mechanics, not evidence of semantic understanding.
 - Faster-than-real-time speed is best-effort and depends on CPU, browser refresh and network size.
