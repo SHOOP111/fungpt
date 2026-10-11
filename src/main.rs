@@ -39,7 +39,7 @@ fn main() -> std::io::Result<()> {
                 let started = Instant::now();
                 let mut speed = 1.0f32;
                 if let Ok(mut model) = simulation.lock() {
-                    speed = model.snapshot()["meta"]["speed"].as_f64().unwrap_or(1.0) as f32;
+                    speed = model.clock_speed();
                     model.step();
                 }
                 let target = Duration::from_secs_f32((0.001 / speed.clamp(0.25, 8.0)).max(0.000125));
