@@ -6,7 +6,7 @@ use brain::Brain;
 use serde::Deserialize;
 use serde_json::json;
 use std::env;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -115,29 +115,81 @@ impl Drop for ConnectionGuard {
     }
 }
 
-fn read_http_line(reader: &mut BufReader<TcpStream>, limit: usize) -> std::io::Result<Option<String>> {
+fn read_http_line(
+    reader: &mut BufReader<TcpStream>,
+    limit: usize,
+    deadline: Instant,
+) -> std::io::Result<Option<String>> {
     let mut bytes = Vec::with_capacity(128);
-    let read = reader
-        .take(limit.saturating_add(1) as u64)
-        .read_until(b'\n', &mut bytes)?;
-    if read == 0 {
-        return Ok(None);
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "HTTP request deadline exceeded",
+            ));
+        }
+        reader.get_mut().set_read_timeout(Some(remaining))?;
+        let available = reader.fill_buf()?;
+        if available.is_empty() {
+            if bytes.is_empty() {
+                return Ok(None);
+            }
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "HTTP line ended before a newline",
+            ));
+        }
+
+        let chunk_len = available
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map_or(available.len(), |index| index + 1);
+        if bytes.len().saturating_add(chunk_len) > limit {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "HTTP line exceeds the configured limit",
+            ));
+        }
+        let complete = available[chunk_len - 1] == b'\n';
+        bytes.extend_from_slice(&available[..chunk_len]);
+        reader.consume(chunk_len);
+        if complete {
+            return String::from_utf8(bytes)
+                .map(Some)
+                .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "HTTP line is not UTF-8"));
+        }
     }
-    if bytes.len() > limit {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "HTTP line exceeds the configured limit",
-        ));
+}
+
+fn read_http_body(
+    reader: &mut BufReader<TcpStream>,
+    body: &mut [u8],
+    deadline: Instant,
+) -> std::io::Result<()> {
+    let mut filled = 0usize;
+    while filled < body.len() {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "HTTP request deadline exceeded",
+            ));
+        }
+        reader.get_mut().set_read_timeout(Some(remaining))?;
+        let available = reader.fill_buf()?;
+        if available.is_empty() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "request body ended before Content-Length bytes were received",
+            ));
+        }
+        let count = available.len().min(body.len() - filled);
+        body[filled..filled + count].copy_from_slice(&available[..count]);
+        reader.consume(count);
+        filled += count;
     }
-    if bytes.last() != Some(&b'\n') {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "HTTP line is not terminated",
-        ));
-    }
-    String::from_utf8(bytes)
-        .map(Some)
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "HTTP line is not UTF-8"))
+    Ok(())
 }
 
 fn parse_request_line(line: &str) -> Option<(&str, &str, &str)> {
@@ -161,8 +213,10 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<Mutex<Brain>>) -> std::io
     stream.set_read_timeout(Some(Duration::from_secs(5)))?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
     let mut reader = BufReader::new(stream.try_clone()?);
+    // A total deadline prevents slow clients from keeping a worker occupied by trickling bytes.
+    let request_deadline = Instant::now() + Duration::from_secs(10);
 
-    let request_line = match read_http_line(&mut reader, MAX_REQUEST_LINE_BYTES) {
+    let request_line = match read_http_line(&mut reader, MAX_REQUEST_LINE_BYTES, request_deadline) {
         Ok(Some(line)) => line,
         Ok(None) => return Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
@@ -185,7 +239,7 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<Mutex<Brain>>) -> std::io
     let mut header_count = 0usize;
 
     loop {
-        let header = match read_http_line(&mut reader, MAX_HEADER_LINE_BYTES) {
+        let header = match read_http_line(&mut reader, MAX_HEADER_LINE_BYTES, request_deadline) {
             Ok(Some(line)) => line,
             Ok(None) => return bad_request(&mut stream, "400 Bad Request", "Headers ended before the terminating blank line."),
             Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
@@ -241,7 +295,7 @@ fn handle_connection(mut stream: TcpStream, brain: Arc<Mutex<Brain>>) -> std::io
         return bad_request(&mut stream, "400 Bad Request", "This route does not accept a request body.");
     }
     let mut body = vec![0u8; content_length];
-    if let Err(error) = reader.read_exact(&mut body) {
+    if let Err(error) = read_http_body(&mut reader, &mut body, request_deadline) {
         if error.kind() == std::io::ErrorKind::UnexpectedEof {
             return bad_request(&mut stream, "400 Bad Request", "Request body ended before Content-Length bytes were received.");
         }
