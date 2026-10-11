@@ -41,14 +41,14 @@ button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus
 
 <section class="metrics" aria-label="Simulation metrics">
   <div class="metric" style="--glow:#6de6d0"><div class="metrichead"><span>Action potentials</span><span class="metricicon">⌁</span></div><div class="metricvalue" id="metricSpikes">—</div><div class="metricfoot">Cumulative spikes emitted</div></div>
-  <div class="metric" style="--glow:#79aaff"><div class="metrichead"><span>Responsive units</span><span class="metricicon">◉</span></div><div class="metricvalue" id="metricActive">—</div><div class="metricfoot"><span id="metricNeurons">292</span> neurons · active rate &gt; 1 Hz</div></div>
+  <div class="metric" style="--glow:#79aaff"><div class="metrichead"><span>Responsive units</span><span class="metricicon">◉</span></div><div class="metricvalue" id="metricActive">—</div><div class="metricfoot"><span id="metricNeurons">1,024</span> neurons · active rate &gt; 1 Hz</div></div>
   <div class="metric" style="--glow:#bd9aff"><div class="metrichead"><span>Synaptic pathways</span><span class="metricicon">⌘</span></div><div class="metricvalue" id="metricSynapses">—</div><div class="metricfoot">Sparse directed connections</div></div>
   <div class="metric" style="--glow:#f5be72"><div class="metrichead"><span>Model time</span><span class="metricicon">◷</span></div><div class="metricvalue" id="metricTime">0.00<span style="font-size:13px;color:#8da0b7"> s</span></div><div class="metricfoot" id="metricSpeed">Clock speed 1.00×</div></div>
 </section>
 
 <section class="workspace">
   <div class="panel networkpanel" id="network">
-    <div class="panelhead"><div class="paneltitle"><span class="mini-icon">⌘</span> Recurrent connectome</div><div style="display:flex;align-items:center;gap:10px"><span class="panelmeta" id="networkMeta">7 regions · 292 units</span><span class="livepill"><span class="dot"></span>LIVE</span></div></div>
+    <div class="panelhead"><div class="paneltitle"><span class="mini-icon">⌘</span> Recurrent connectome</div><div style="display:flex;align-items:center;gap:10px"><span class="panelmeta" id="networkMeta">7 regions · 1,024 units</span><span class="livepill"><span class="dot"></span>LIVE</span></div></div>
     <div class="networkwrap"><canvas class="networkcanvas" id="networkCanvas" aria-label="Interactive visualization of neural network"></canvas>
       <div class="canvasoverlay"><div><div class="tinylabel">Population activity map</div><div style="font-size:10px;color:#8297ad;margin-top:3px">Select a node to stimulate its region</div></div><div class="canvasreadout" id="hoverReadout">Awaiting network state…</div></div>
       <div class="canvasbottom"><div class="key"><span class="keyitem"><span class="keydot" style="background:#6de6d0"></span>Excitatory</span><span class="keyitem"><span class="keydot" style="background:#ed8ca8"></span>Inhibitory</span><span class="keyitem"><span class="keydot" style="background:#f9d782;box-shadow:0 0 7px #f9d782"></span>High activity</span></div><div class="canvasaction">CLICK NETWORK · APPLY INPUT</div></div>
